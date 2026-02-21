@@ -10,8 +10,7 @@ export function NotificationsView() {
   if (!currentUser) return null
 
   const filtered = notifications.filter(
-    (n) =>
-      currentUser.role === "manager" || n.toRole === "iso" || n.toRole === "all"
+    (n) => n.toRole === "all" || n.toRole === currentUser.role
   )
 
   return (

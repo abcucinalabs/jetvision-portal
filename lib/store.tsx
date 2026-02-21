@@ -92,6 +92,16 @@ const USERS: User[] = [
 
 const SEED_NOTIFICATIONS: Notification[] = [
   {
+    id: "n-4",
+    title: "New Flight Request Awaiting Your Review",
+    body: "Jordan Carter submitted a new flight request for Richard Branson III: Teterboro (KTEB) to Miami Opa-Locka (KOPF) on March 15, 2026 for 6 passengers. Please review the request details, source available flights via your preferred operator network, and generate an RFQ to send to operators. Once an operator responds with pricing, you can accept their quote or negotiate a new price before creating a proposal.",
+    fromUserId: "iso-1",
+    fromUserName: "Jordan Carter",
+    toRole: "manager",
+    createdAt: "2026-02-13T08:15:00Z",
+    read: false,
+  },
+  {
     id: "n-1",
     title: "Q1 Revenue Update",
     body: "We exceeded our Q1 targets by 14%. Great work across all teams. New commission structures take effect next month.",
@@ -114,7 +124,7 @@ const SEED_NOTIFICATIONS: Notification[] = [
   {
     id: "n-3",
     title: "Required: New Portal Training Available",
-    body: "A new training module on the latest JetStream Portal enhancements is now available. Topics include the updated customer selection workflow, improved proposal builder, and new marketplace filters. All ISOs must complete this training by February 28th. Access it from the Help section in your profile.",
+    body: "A new training module on the latest JetStream Portal enhancements is now available. Topics include the updated customer selection workflow, improved proposal builder, and new marketplace filters. All team members must complete this training by February 28th. Access it from the Help section in your profile.",
     fromUserId: "mgr-1",
     fromUserName: "Morgan Hayes",
     toRole: "all",
@@ -370,7 +380,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const unreadCount = notifications.filter(
     (n) =>
       !n.read &&
-      (currentUser?.role === "manager" || n.toRole === "iso" || n.toRole === "all")
+      currentUser &&
+      (n.toRole === "all" || n.toRole === currentUser.role)
   ).length
 
   const addFlightRequest = useCallback(

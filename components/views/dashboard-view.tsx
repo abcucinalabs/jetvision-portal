@@ -57,8 +57,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   const recentRequests = (isManager ? flightRequests : myRequests).slice(0, 5)
   const recentNotifications = notifications
     .filter(
-      (n) =>
-        currentUser.role === "manager" || n.toRole === "iso" || n.toRole === "all"
+      (n) => n.toRole === "all" || n.toRole === currentUser.role
     )
     .slice(0, 4)
 

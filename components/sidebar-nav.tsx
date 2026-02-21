@@ -37,13 +37,12 @@ const ISO_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboard }
 ]
 
 const MANAGER_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboard }[] = [
+  { label: "Notifications", view: "notifications", icon: Bell },
   { label: "Dashboard", view: "dashboard", icon: LayoutDashboard },
   { label: "Flight Requests", view: "flight-requests", icon: PlaneTakeoff },
-  { label: "Marketplace", view: "marketplace", icon: ShoppingBag },
   { label: "Send Proposal", view: "send-proposal", icon: Send },
-  { label: "Notifications", view: "notifications", icon: Bell },
-  { label: "Send Notification", view: "send-notification", icon: Bell },
   { label: "Proposals", view: "proposals", icon: FileText },
+  { label: "Send Notification", view: "send-notification", icon: Bell },
 ]
 
 export function SidebarNav({ activeView, onNavigate }: SidebarNavProps) {
