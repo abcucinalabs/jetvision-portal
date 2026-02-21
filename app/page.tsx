@@ -1,3 +1,5 @@
+"use client"
+
 import { StoreProvider } from "@/lib/store"
 import { PortalShell } from "@/components/portal-shell"
 
