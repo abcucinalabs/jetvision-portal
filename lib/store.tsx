@@ -113,8 +113,8 @@ const SEED_NOTIFICATIONS: Notification[] = [
   },
   {
     id: "n-3",
-    title: "System Maintenance Window",
-    body: "The portal will undergo scheduled maintenance this Saturday from 2:00 AM to 6:00 AM EST. Please plan accordingly.",
+    title: "Required: New Portal Training Available",
+    body: "A new training module on the latest JetStream Portal enhancements is now available. Topics include the updated customer selection workflow, improved proposal builder, and new marketplace filters. All ISOs must complete this training by February 28th. Access it from the Help section in your profile.",
     fromUserId: "mgr-1",
     fromUserName: "Morgan Hayes",
     toRole: "all",

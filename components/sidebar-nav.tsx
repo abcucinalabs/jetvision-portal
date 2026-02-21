@@ -30,9 +30,9 @@ interface SidebarNavProps {
 }
 
 const ISO_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboard }[] = [
+  { label: "Notifications", view: "notifications", icon: Bell },
   { label: "Dashboard", view: "dashboard", icon: LayoutDashboard },
   { label: "Flight Requests", view: "flight-requests", icon: PlaneTakeoff },
-  { label: "Notifications", view: "notifications", icon: Bell },
   { label: "Proposals", view: "proposals", icon: FileText },
 ]
 
