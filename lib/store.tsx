@@ -44,6 +44,14 @@ export interface FlightRequest {
   createdAt: string
 }
 
+export interface Customer {
+  id: string
+  name: string
+  email: string
+  phone: string
+  createdAt: string
+}
+
 export interface MarketplaceJet {
   id: string
   operator: string
@@ -184,6 +192,44 @@ const SEED_PROPOSALS: Proposal[] = [
   },
 ]
 
+const SEED_CUSTOMERS: Customer[] = [
+  {
+    id: "cust-1",
+    name: "Richard Branson III",
+    email: "rb3@example.com",
+    phone: "+1 (555) 234-5678",
+    createdAt: "2026-01-15T09:00:00Z",
+  },
+  {
+    id: "cust-2",
+    name: "Elena Vasquez",
+    email: "elena.v@example.com",
+    phone: "+1 (555) 876-5432",
+    createdAt: "2026-01-20T14:30:00Z",
+  },
+  {
+    id: "cust-3",
+    name: "Marcus Chen",
+    email: "mchen@example.com",
+    phone: "+1 (555) 111-2233",
+    createdAt: "2026-02-01T10:00:00Z",
+  },
+  {
+    id: "cust-4",
+    name: "Sophia Laurent",
+    email: "slaurent@example.com",
+    phone: "+1 (555) 444-7788",
+    createdAt: "2026-02-05T16:45:00Z",
+  },
+  {
+    id: "cust-5",
+    name: "James Worthington",
+    email: "jworthington@example.com",
+    phone: "+1 (555) 999-3311",
+    createdAt: "2026-02-10T08:15:00Z",
+  },
+]
+
 const MARKETPLACE_JETS: MarketplaceJet[] = [
   {
     id: "jet-1",
@@ -274,6 +320,9 @@ interface StoreContextType {
   addProposal: (p: Omit<Proposal, "id" | "createdAt" | "status">) => void
   updateProposalStatus: (id: string, status: Proposal["status"]) => void
 
+  customers: Customer[]
+  addCustomer: (c: Omit<Customer, "id" | "createdAt">) => Customer
+
   marketplaceJets: MarketplaceJet[]
 }
 
@@ -290,6 +339,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>(SEED_NOTIFICATIONS)
   const [flightRequests, setFlightRequests] = useState<FlightRequest[]>(SEED_FLIGHT_REQUESTS)
   const [proposals, setProposals] = useState<Proposal[]>(SEED_PROPOSALS)
+  const [customers, setCustomers] = useState<Customer[]>(SEED_CUSTOMERS)
 
   const login = useCallback((userId: string) => {
     const user = USERS.find((u) => u.id === userId)
@@ -361,6 +411,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setProposals((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)))
   }, [])
 
+  const addCustomer = useCallback(
+    (c: Omit<Customer, "id" | "createdAt">): Customer => {
+      const newCustomer: Customer = {
+        ...c,
+        id: `cust-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+      }
+      setCustomers((prev) => [newCustomer, ...prev])
+      return newCustomer
+    },
+    []
+  )
+
   return (
     <StoreContext.Provider
       value={{
@@ -378,6 +441,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         proposals,
         addProposal,
         updateProposalStatus,
+        customers,
+        addCustomer,
         marketplaceJets: MARKETPLACE_JETS,
       }}
     >

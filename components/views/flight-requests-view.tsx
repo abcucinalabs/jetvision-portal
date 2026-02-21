@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { useStore } from "@/lib/store"
-import { PlaneTakeoff, Plus, X, Calendar, Users, MapPin } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { useStore, type Customer } from "@/lib/store"
+import { PlaneTakeoff, Plus, X, Calendar, Users, MapPin, Search, UserPlus, ChevronDown } from "lucide-react"
 
 export function FlightRequestsView() {
   const { currentUser, flightRequests, addFlightRequest } = useStore()
@@ -151,6 +151,13 @@ function NewFlightRequestForm({
   onClose: () => void
   onSubmit: (data: FormData) => void
 }) {
+  const { customers, addCustomer } = useStore()
+  const [customerMode, setCustomerMode] = useState<"select" | "new">("select")
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [customerSearch, setCustomerSearch] = useState("")
+  const [showDropdown, setShowDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
   const [form, setForm] = useState<FormData>({
     clientName: "",
     clientEmail: "",
@@ -163,8 +170,70 @@ function NewFlightRequestForm({
     specialRequests: "",
   })
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const filteredCustomers = customers.filter(
+    (c) =>
+      c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      c.email.toLowerCase().includes(customerSearch.toLowerCase())
+  )
+
+  const selectExistingCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer)
+    setForm((prev) => ({
+      ...prev,
+      clientName: customer.name,
+      clientEmail: customer.email,
+      clientPhone: customer.phone,
+    }))
+    setCustomerSearch("")
+    setShowDropdown(false)
+  }
+
+  const switchToNewCustomer = () => {
+    setCustomerMode("new")
+    setSelectedCustomer(null)
+    setForm((prev) => ({
+      ...prev,
+      clientName: "",
+      clientEmail: "",
+      clientPhone: "",
+    }))
+    setCustomerSearch("")
+    setShowDropdown(false)
+  }
+
+  const switchToSelectCustomer = () => {
+    setCustomerMode("select")
+    setSelectedCustomer(null)
+    setForm((prev) => ({
+      ...prev,
+      clientName: "",
+      clientEmail: "",
+      clientPhone: "",
+    }))
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
+    // If creating a new customer, save them to the store
+    if (customerMode === "new" && form.clientName && form.clientEmail) {
+      addCustomer({
+        name: form.clientName,
+        email: form.clientEmail,
+        phone: form.clientPhone,
+      })
+    }
+
     onSubmit({
       ...form,
       returnDate: form.returnDate || undefined,
@@ -188,37 +257,151 @@ function NewFlightRequestForm({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Client Name *</span>
-            <input
-              required
-              value={form.clientName}
-              onChange={(e) => setForm({ ...form, clientName: e.target.value })}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="Full name"
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Client Email *</span>
-            <input
-              required
-              type="email"
-              value={form.clientEmail}
-              onChange={(e) => setForm({ ...form, clientEmail: e.target.value })}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="email@example.com"
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Client Phone</span>
-            <input
-              value={form.clientPhone}
-              onChange={(e) => setForm({ ...form, clientPhone: e.target.value })}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="+1 (555) 000-0000"
-            />
-          </label>
+        {/* Customer Selection Tabs */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+            <button
+              type="button"
+              onClick={switchToSelectCustomer}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                customerMode === "select"
+                  ? "bg-card text-card-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Search className="h-3.5 w-3.5" />
+              Existing Customer
+            </button>
+            <button
+              type="button"
+              onClick={switchToNewCustomer}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                customerMode === "new"
+                  ? "bg-card text-card-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              New Customer
+            </button>
+          </div>
+
+          {customerMode === "select" ? (
+            <div className="space-y-3">
+              {selectedCustomer ? (
+                <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-card-foreground">
+                      {selectedCustomer.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedCustomer.email}
+                      {selectedCustomer.phone && ` \u00B7 ${selectedCustomer.phone}`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCustomer(null)
+                      setForm((prev) => ({
+                        ...prev,
+                        clientName: "",
+                        clientEmail: "",
+                        clientPhone: "",
+                      }))
+                    }}
+                    className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label="Remove selected customer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative" ref={dropdownRef}>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      value={customerSearch}
+                      onChange={(e) => {
+                        setCustomerSearch(e.target.value)
+                        setShowDropdown(true)
+                      }}
+                      onFocus={() => setShowDropdown(true)}
+                      className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      placeholder="Search customers by name or email..."
+                    />
+                    <ChevronDown className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  </div>
+                  {showDropdown && (
+                    <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-border bg-card shadow-lg">
+                      {filteredCustomers.length > 0 ? (
+                        filteredCustomers.map((customer) => (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            onClick={() => selectExistingCustomer(customer)}
+                            className="flex w-full flex-col px-4 py-2.5 text-left transition-colors hover:bg-muted"
+                          >
+                            <span className="text-sm font-medium text-card-foreground">
+                              {customer.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {customer.email}
+                              {customer.phone && ` \u00B7 ${customer.phone}`}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-center">
+                          <p className="text-sm text-muted-foreground">No customers found</p>
+                          <button
+                            type="button"
+                            onClick={switchToNewCustomer}
+                            className="mt-1 text-sm font-medium text-primary hover:underline"
+                          >
+                            Create a new customer
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <label className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Client Name *</span>
+                <input
+                  required
+                  value={form.clientName}
+                  onChange={(e) => setForm({ ...form, clientName: e.target.value })}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="Full name"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Client Email *</span>
+                <input
+                  required
+                  type="email"
+                  value={form.clientEmail}
+                  onChange={(e) => setForm({ ...form, clientEmail: e.target.value })}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="email@example.com"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Client Phone</span>
+                <input
+                  value={form.clientPhone}
+                  onChange={(e) => setForm({ ...form, clientPhone: e.target.value })}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="+1 (555) 000-0000"
+                />
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -299,7 +482,8 @@ function NewFlightRequestForm({
           </button>
           <button
             type="submit"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+            disabled={customerMode === "select" && !selectedCustomer}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Submit Request
           </button>
