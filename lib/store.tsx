@@ -1,6 +1,14 @@
 "use client"
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import {
+  type AvinodeConfig,
+  type AvinodeTrip,
+  type AvinodeRfq,
+  type AvinodeQuote,
+  type AvinodeWebhookEventType,
+  DEFAULT_CONFIG,
+} from "@/lib/avinode"
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -42,6 +50,13 @@ export interface FlightRequest {
   specialRequests?: string
   status: FlightRequestStatus
   createdAt: string
+  // Avinode integration fields
+  avinodeTripId?: string        // Avinode trip display ID (e.g. "A1B2C3")
+  avinodeTripHref?: string      // API href for the trip
+  avinodeSearchLink?: string    // Deep link to search in Avinode
+  avinodeViewLink?: string      // Deep link to view in Avinode
+  avinodeRfqIds?: string[]      // Associated RFQ IDs from Avinode
+  avinodeStatus?: "not_sent" | "sent_to_avinode" | "rfq_sent" | "quotes_received" | "booked" | "cancelled"
 }
 
 export interface Customer {
@@ -82,6 +97,12 @@ export interface Proposal {
   notes?: string
   status: "pending" | "sent_to_client" | "accepted" | "declined"
   createdAt: string
+  // Avinode integration fields
+  avinodeQuoteId?: string
+  avinodeRfqId?: string
+  avinodeQuotePrice?: number
+  avinodeQuoteCurrency?: string
+  avinodeOperatorResponse?: "quoted" | "declined" | "pending"
 }
 
 // ── Seed Data ──────────────────────────────────────────────────────
@@ -338,6 +359,29 @@ interface StoreContextType {
   addCustomer: (c: Omit<Customer, "id" | "createdAt">) => Customer
 
   marketplaceJets: MarketplaceJet[]
+
+  // Avinode integration
+  avinodeConfig: AvinodeConfig
+  setAvinodeConfig: (config: Partial<AvinodeConfig>) => void
+  avinodeConnected: boolean
+  avinodeActivity: AvinodeActivityItem[]
+  addAvinodeActivity: (item: Omit<AvinodeActivityItem, "id" | "timestamp">) => void
+  updateFlightRequestAvinode: (
+    id: string,
+    data: Partial<Pick<FlightRequest, "avinodeTripId" | "avinodeTripHref" | "avinodeSearchLink" | "avinodeViewLink" | "avinodeRfqIds" | "avinodeStatus">>
+  ) => void
+  avinodeWebhookEvents: AvinodeWebhookEventType[]
+  setAvinodeWebhookEvents: (events: AvinodeWebhookEventType[]) => void
+}
+
+export interface AvinodeActivityItem {
+  id: string
+  type: "trip_created" | "rfq_sent" | "quote_received" | "message_sent" | "message_received" | "lead_created" | "trip_cancelled" | "webhook_received" | "search_completed"
+  title: string
+  description: string
+  flightRequestId?: string
+  avinodeTripId?: string
+  timestamp: string
 }
 
 const StoreContext = createContext<StoreContextType | null>(null)
@@ -354,6 +398,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [flightRequests, setFlightRequests] = useState<FlightRequest[]>(SEED_FLIGHT_REQUESTS)
   const [proposals, setProposals] = useState<Proposal[]>(SEED_PROPOSALS)
   const [customers, setCustomers] = useState<Customer[]>(SEED_CUSTOMERS)
+  const [avinodeConfig, setAvinodeConfigState] = useState<AvinodeConfig>(DEFAULT_CONFIG)
+  const [avinodeActivity, setAvinodeActivity] = useState<AvinodeActivityItem[]>([
+    {
+      id: "av-seed-1",
+      type: "search_completed",
+      title: "Aircraft Search Completed",
+      description: "Search for KTEB to KOPF on Mar 15 returned 12 available aircraft via Avinode Marketplace.",
+      flightRequestId: "fr-1",
+      avinodeTripId: "JS26A1",
+      timestamp: "2026-02-11T09:30:00Z",
+    },
+    {
+      id: "av-seed-2",
+      type: "rfq_sent",
+      title: "RFQ Sent to Operators",
+      description: "RFQ sent to 3 operators (NetJets, VistaJet, Flexjet) for Teterboro to Miami Opa-Locka via Avinode.",
+      flightRequestId: "fr-1",
+      avinodeTripId: "JS26A1",
+      timestamp: "2026-02-11T10:15:00Z",
+    },
+    {
+      id: "av-seed-3",
+      type: "quote_received",
+      title: "Quote Received from NetJets",
+      description: "NetJets quoted $68,500 for Gulfstream G650, KTEB to KOPF round trip. Quote valid until Mar 1, 2026.",
+      flightRequestId: "fr-1",
+      avinodeTripId: "JS26A1",
+      timestamp: "2026-02-11T14:45:00Z",
+    },
+  ])
+  const [avinodeWebhookEvents, setAvinodeWebhookEvents] = useState<AvinodeWebhookEventType[]>([
+    "TripRequestSellerResponse",
+    "TripRequestMine",
+    "TripChatFromSeller",
+    "TripChatMine",
+    "ClientLeads",
+  ])
 
   const login = useCallback((userId: string) => {
     const user = USERS.find((u) => u.id === userId)
@@ -439,6 +520,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     []
   )
 
+  const setAvinodeConfig = useCallback((partial: Partial<AvinodeConfig>) => {
+    setAvinodeConfigState((prev) => ({ ...prev, ...partial }))
+  }, [])
+
+  const avinodeConnected = Boolean(avinodeConfig.apiToken && avinodeConfig.authToken)
+
+  const addAvinodeActivity = useCallback(
+    (item: Omit<AvinodeActivityItem, "id" | "timestamp">) => {
+      setAvinodeActivity((prev) => [
+        {
+          ...item,
+          id: `av-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+        },
+        ...prev,
+      ])
+    },
+    []
+  )
+
+  const updateFlightRequestAvinode = useCallback(
+    (
+      id: string,
+      data: Partial<Pick<FlightRequest, "avinodeTripId" | "avinodeTripHref" | "avinodeSearchLink" | "avinodeViewLink" | "avinodeRfqIds" | "avinodeStatus">>
+    ) => {
+      setFlightRequests((prev) =>
+        prev.map((fr) => (fr.id === id ? { ...fr, ...data } : fr))
+      )
+    },
+    []
+  )
+
   return (
     <StoreContext.Provider
       value={{
@@ -459,6 +572,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         customers,
         addCustomer,
         marketplaceJets: MARKETPLACE_JETS,
+        avinodeConfig,
+        setAvinodeConfig,
+        avinodeConnected,
+        avinodeActivity,
+        addAvinodeActivity,
+        updateFlightRequestAvinode,
+        avinodeWebhookEvents,
+        setAvinodeWebhookEvents,
       }}
     >
       {children}

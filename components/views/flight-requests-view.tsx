@@ -1,8 +1,25 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { useStore, type Customer } from "@/lib/store"
-import { PlaneTakeoff, Plus, X, Calendar, Users, MapPin, Search, UserPlus, ChevronDown } from "lucide-react"
+import { useStore, type Customer, type FlightRequest } from "@/lib/store"
+import {
+  PlaneTakeoff,
+  Plus,
+  X,
+  Calendar,
+  Users,
+  MapPin,
+  Search,
+  UserPlus,
+  ChevronDown,
+  ExternalLink,
+  Globe,
+  Send,
+  Loader2,
+  CheckCircle2,
+  MessageSquare,
+  XCircle,
+} from "lucide-react"
 
 export function FlightRequestsView() {
   const { currentUser, flightRequests, addFlightRequest } = useStore()
@@ -11,9 +28,35 @@ export function FlightRequestsView() {
   if (!currentUser) return null
 
   const isManager = currentUser.role === "manager"
+  const { avinodeConnected, updateFlightRequestAvinode, addAvinodeActivity } = useStore()
+
   const requests = isManager
     ? flightRequests
     : flightRequests.filter((fr) => fr.isoId === currentUser.id)
+
+  const [sendingToAvinode, setSendingToAvinode] = useState<string | null>(null)
+
+  const handleSendToAvinode = (fr: FlightRequest) => {
+    setSendingToAvinode(fr.id)
+    // Simulate POST /trips API call
+    setTimeout(() => {
+      const tripId = `JS${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+      updateFlightRequestAvinode(fr.id, {
+        avinodeTripId: tripId,
+        avinodeSearchLink: `https://marketplace.avinode.com/marketplace/mvc/search/load/${tripId}?source=api`,
+        avinodeViewLink: `https://marketplace.avinode.com/marketplace/mvc/trips/buying/${tripId}?source=api`,
+        avinodeStatus: "sent_to_avinode",
+      })
+      addAvinodeActivity({
+        type: "trip_created",
+        title: "Trip Created in Avinode",
+        description: `Trip for ${fr.clientName}: ${fr.departure} to ${fr.arrival} on ${fr.departureDate}. ${fr.passengers} passengers. Use the search deep link to find available aircraft.`,
+        flightRequestId: fr.id,
+        avinodeTripId: tripId,
+      })
+      setSendingToAvinode(null)
+    }, 1500)
+  }
 
   return (
     <div className="space-y-6">
@@ -22,7 +65,7 @@ export function FlightRequestsView() {
           <h1 className="text-2xl font-bold text-foreground">Flight Requests</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isManager
-              ? "View and manage all incoming flight requests."
+              ? "View and manage all incoming flight requests. Send to Avinode for aircraft sourcing."
               : "Submit and track flight requests for your clients."}
           </p>
         </div>
@@ -80,6 +123,9 @@ export function FlightRequestsView() {
                       {fr.clientName}
                     </h3>
                     <StatusBadge status={fr.status} />
+                    {fr.avinodeStatus && (
+                      <AvinodeStatusBadge status={fr.avinodeStatus} />
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1.5">
@@ -101,19 +147,101 @@ export function FlightRequestsView() {
                       &ldquo;{fr.specialRequests}&rdquo;
                     </p>
                   )}
+
+                  {/* Avinode Trip ID */}
+                  {fr.avinodeTripId && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">
+                        Avinode: {fr.avinodeTripId}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                {isManager && (
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-medium text-card-foreground">ISO:</span>{" "}
-                    {fr.isoName}
-                  </div>
-                )}
+
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  {isManager && (
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-medium text-card-foreground">ISO:</span>{" "}
+                      {fr.isoName}
+                    </div>
+                  )}
+
+                  {/* Avinode Actions for Manager */}
+                  {isManager && (
+                    <div className="flex flex-col gap-1.5">
+                      {!fr.avinodeTripId ? (
+                        <button
+                          onClick={() => handleSendToAvinode(fr)}
+                          disabled={!avinodeConnected || sendingToAvinode === fr.id}
+                          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={!avinodeConnected ? "Configure Avinode API credentials first" : "Create trip in Avinode via POST /trips"}
+                        >
+                          {sendingToAvinode === fr.id ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Globe className="h-3 w-3" />
+                              Send to Avinode
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <>
+                          {fr.avinodeSearchLink && (
+                            <a
+                              href={fr.avinodeSearchLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 rounded-lg bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/20 transition-colors"
+                            >
+                              <Search className="h-3 w-3" />
+                              Search in Avinode
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                          {fr.avinodeViewLink && (
+                            <a
+                              href={fr.avinodeViewLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View in Avinode
+                            </a>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
     </div>
+  )
+}
+
+function AvinodeStatusBadge({ status }: { status: string }) {
+  const config: Record<string, { bg: string; text: string; label: string }> = {
+    not_sent: { bg: "bg-muted", text: "text-muted-foreground", label: "Not in Avinode" },
+    sent_to_avinode: { bg: "bg-primary/10", text: "text-primary", label: "In Avinode" },
+    rfq_sent: { bg: "bg-accent/10", text: "text-accent", label: "RFQ Sent" },
+    quotes_received: { bg: "bg-green-500/10", text: "text-green-600", label: "Quotes Received" },
+    booked: { bg: "bg-green-500/10", text: "text-green-600", label: "Booked" },
+    cancelled: { bg: "bg-destructive/10", text: "text-destructive", label: "Cancelled" },
+  }
+  const c = config[status] || config.not_sent
+  return (
+    <span className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${c.bg} ${c.text}`}>
+      <Globe className="h-3 w-3" />
+      {c.label}
+    </span>
   )
 }
 

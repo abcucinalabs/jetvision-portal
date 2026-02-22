@@ -10,6 +10,9 @@ import {
   Calendar,
   Users,
   ChevronRight,
+  Globe,
+  ExternalLink,
+  MessageSquare,
 } from "lucide-react"
 
 export function SendProposalView() {
@@ -19,6 +22,8 @@ export function SendProposalView() {
     marketplaceJets,
     addProposal,
     updateFlightRequestStatus,
+    avinodeConnected,
+    addAvinodeActivity,
   } = useStore()
   const [selectedRequest, setSelectedRequest] = useState<FlightRequest | null>(null)
   const [selectedJetId, setSelectedJetId] = useState("")
@@ -114,6 +119,12 @@ export function SendProposalView() {
                       <span className="text-xs text-muted-foreground">
                         via {fr.isoName}
                       </span>
+                      {fr.avinodeTripId && (
+                        <span className="flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono text-primary">
+                          <Globe className="h-3 w-3" />
+                          {fr.avinodeTripId}
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
@@ -139,7 +150,7 @@ export function SendProposalView() {
       ) : (
         /* Step 2: Build the proposal */
         <div className="max-w-2xl space-y-5">
-          <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
+          <div className="rounded-xl border border-accent/30 bg-accent/5 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold text-card-foreground">
@@ -157,6 +168,59 @@ export function SendProposalView() {
                 Change
               </button>
             </div>
+
+            {/* Avinode Integration Panel */}
+            {selectedRequest.avinodeTripId ? (
+              <div className="rounded-lg border border-primary/20 bg-card p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs font-semibold text-card-foreground">
+                    Avinode Trip: {selectedRequest.avinodeTripId}
+                  </span>
+                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary uppercase">
+                    {selectedRequest.avinodeStatus?.replace(/_/g, " ") || "Active"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Source flights via the Avinode Marketplace. Send RFQs to operators, then use their quote data to populate the proposal below.
+                </p>
+                <div className="flex items-center gap-2">
+                  {selectedRequest.avinodeSearchLink && (
+                    <a
+                      href={selectedRequest.avinodeSearchLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      Search Aircraft
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                  {selectedRequest.avinodeViewLink && (
+                    <a
+                      href={selectedRequest.avinodeViewLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      View Trip
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Globe className="h-3.5 w-3.5" />
+                  <span>
+                    {avinodeConnected
+                      ? "This request has not been sent to Avinode yet. Go to Flight Requests to send it."
+                      : "Connect Avinode in Settings to source flights from the marketplace."}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-border bg-card p-6">

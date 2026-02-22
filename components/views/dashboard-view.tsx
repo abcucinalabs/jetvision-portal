@@ -10,7 +10,11 @@ import {
   AlertCircle,
   DollarSign,
   Percent,
+  Globe,
+  ExternalLink,
+  Activity,
 } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
 import type { PortalView } from "@/components/sidebar-nav"
 
 interface DashboardViewProps {
@@ -18,7 +22,15 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ onNavigate }: DashboardViewProps) {
-  const { currentUser, flightRequests, proposals, notifications, unreadCount } = useStore()
+  const {
+    currentUser,
+    flightRequests,
+    proposals,
+    notifications,
+    unreadCount,
+    avinodeConnected,
+    avinodeActivity,
+  } = useStore()
 
   if (!currentUser) return null
 
@@ -130,6 +142,35 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         ))}
       </div>
 
+      {/* Avinode Connection Status - Manager only */}
+      {isManager && (
+        <div
+          className={`flex items-center gap-3 rounded-xl border px-5 py-3.5 ${
+            avinodeConnected
+              ? "border-green-500/20 bg-green-500/5"
+              : "border-destructive/20 bg-destructive/5"
+          }`}
+        >
+          <Globe className={`h-5 w-5 shrink-0 ${avinodeConnected ? "text-green-600" : "text-destructive"}`} />
+          <div className="flex-1">
+            <span className={`text-sm font-semibold ${avinodeConnected ? "text-green-700" : "text-destructive"}`}>
+              {avinodeConnected ? "Avinode Marketplace Connected" : "Avinode Not Connected"}
+            </span>
+            <span className="ml-2 text-xs text-muted-foreground">
+              {avinodeConnected
+                ? `${avinodeActivity.length} recent activities`
+                : "Configure API credentials in Avinode Settings"}
+            </span>
+          </div>
+          <button
+            onClick={() => onNavigate("avinode-settings")}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            {avinodeConnected ? "Settings" : "Connect"}
+          </button>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Recent flight requests */}
         <div className="rounded-xl border border-border bg-card">
@@ -206,6 +247,52 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           )}
         </div>
       </div>
+      {/* Avinode Recent Activity - Manager only */}
+      {isManager && avinodeActivity.length > 0 && (
+        <div className="rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold text-card-foreground">
+                Avinode Activity
+              </h2>
+            </div>
+            <button
+              onClick={() => onNavigate("avinode-settings")}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              View all
+            </button>
+          </div>
+          <div className="divide-y divide-border">
+            {avinodeActivity.slice(0, 4).map((item) => (
+              <div key={item.id} className="flex items-start gap-3 px-5 py-3.5">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Globe className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium text-card-foreground">
+                      {item.title}
+                    </span>
+                    {item.avinodeTripId && (
+                      <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[10px] font-mono text-muted-foreground">
+                        {item.avinodeTripId}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                    {item.description}
+                  </p>
+                  <span className="mt-0.5 text-[10px] text-muted-foreground">
+                    {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
