@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 
-// GET /api/avinode/test - Test connection by searching for a known airport
-export async function GET(req: NextRequest) {
+// POST /api/avinode/test - Test connection by searching for a known airport
+// Uses POST so credentials go in the body (JWTs can be very long and exceed URL limits in GET)
+export async function POST(req: NextRequest) {
   try {
+    const body = await req.json()
     // AVINODE_API_TOKEN = OAuth Secret / API Key (X-Avinode-ApiToken header)
     // AVINODE_AUTH_TOKEN = Authentication Token / JWT Bearer (Authorization header)
-    const apiToken = req.nextUrl.searchParams.get("apiToken") || process.env.AVINODE_API_TOKEN || ""
-    const authToken = req.nextUrl.searchParams.get("authToken") || process.env.AVINODE_AUTH_TOKEN || ""
-    const baseUrl = req.nextUrl.searchParams.get("baseUrl") || process.env.AVINODE_BASE_URL || "https://sandbox.avinode.com/api"
-    const product = req.nextUrl.searchParams.get("product") || "JetStream Portal v1.0"
-    const apiVersion = req.nextUrl.searchParams.get("apiVersion") || "v1.0"
-    const actAsAccount = req.nextUrl.searchParams.get("actAsAccount") || ""
+    const apiToken = body.apiToken || process.env.AVINODE_API_TOKEN || ""
+    const authToken = body.authToken || process.env.AVINODE_AUTH_TOKEN || ""
+    const baseUrl = body.baseUrl || process.env.AVINODE_BASE_URL || "https://sandbox.avinode.com/api"
+    const product = body.product || "JetStream Portal v1.0"
+    const apiVersion = body.apiVersion || "v1.0"
+    const actAsAccount = body.actAsAccount || ""
 
     if (!apiToken || !authToken) {
       return NextResponse.json(
-        { error: "Missing API credentials", connected: false },
+        { error: "Missing API credentials. Please enter both API Token and Authentication Token.", connected: false },
         { status: 400 }
       )
     }
@@ -26,7 +28,6 @@ export async function GET(req: NextRequest) {
       "X-Avinode-SentTimestamp": new Date().toISOString(),
       "X-Avinode-ApiVersion": apiVersion,
       "X-Avinode-Product": product,
-      "Accept-Encoding": "gzip",
     }
     if (actAsAccount) headers["X-Avinode-ActAsAccount"] = actAsAccount
 
@@ -41,19 +42,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         connected: true,
         environment: baseUrl.includes("sandbox") ? "sandbox" : "production",
-        testResult: `Found ${data.data?.length ?? 0} airports matching "KJFK"`,
+        testResult: `Connected successfully. Found ${data.data?.length ?? 0} airports matching "KJFK"`,
       })
     } else {
-      const errorData = await res.json().catch(() => ({}))
+      const errorText = await res.text().catch(() => "")
+      let errorDetail = `API returned ${res.status}`
+      try {
+        const errorJson = JSON.parse(errorText)
+        errorDetail = errorJson?.meta?.errors?.[0]?.message || errorJson?.message || errorDetail
+      } catch {
+        if (errorText) errorDetail += `: ${errorText.slice(0, 200)}`
+      }
       return NextResponse.json({
         connected: false,
-        error: `API returned ${res.status}`,
-        details: errorData,
+        error: errorDetail,
       })
     }
   } catch (error) {
     return NextResponse.json(
-      { connected: false, error: "Connection failed", message: String(error) },
+      { connected: false, error: `Connection failed: ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     )
   }

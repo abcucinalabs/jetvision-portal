@@ -41,11 +41,23 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(body),
     })
 
-    const data = await res.json()
+    const responseText = await res.text()
+    let data: Record<string, unknown>
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      return NextResponse.json(
+        { error: `Avinode returned non-JSON response (${res.status}): ${responseText.slice(0, 300)}` },
+        { status: res.status || 500 }
+      )
+    }
 
     if (!res.ok) {
+      const errorMessage = (data?.meta as Record<string, unknown[]>)?.errors?.[0]
+        ? ((data.meta as Record<string, { message: string }[]>).errors[0].message)
+        : (data?.error as string) || `Avinode API error ${res.status}`
       return NextResponse.json(
-        { error: "Avinode API error", status: res.status, details: data },
+        { error: errorMessage, status: res.status, details: data },
         { status: res.status }
       )
     }
@@ -53,7 +65,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data)
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to connect to Avinode", message: String(error) },
+      { error: `Failed to connect to Avinode: ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     )
   }

@@ -28,27 +28,46 @@ export async function testConnection(config: AvinodeConfig): Promise<{
   testResult?: string
   error?: string
 }> {
-  const params = new URLSearchParams({
-    apiToken: config.apiToken,
-    authToken: config.authToken,
-    baseUrl: config.baseUrl,
-    product: config.product,
-    apiVersion: config.apiVersion,
-  })
-  if (config.actAsAccount) params.set("actAsAccount", config.actAsAccount)
+  console.log("[v0] testConnection: calling /api/avinode/test with baseUrl:", config.baseUrl)
 
-  const res = await fetch(`/api/avinode/test?${params.toString()}`)
-  return res.json()
+  const res = await fetch("/api/avinode/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      apiToken: config.apiToken,
+      authToken: config.authToken,
+      baseUrl: config.baseUrl,
+      product: config.product,
+      apiVersion: config.apiVersion,
+      actAsAccount: config.actAsAccount || undefined,
+    }),
+  })
+  const responseText = await res.text()
+  console.log("[v0] testConnection: response status:", res.status, "body:", responseText.slice(0, 500))
+
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(responseText)
+  } catch {
+    return { connected: false, error: `Non-JSON response (${res.status}): ${responseText.slice(0, 200)}` }
+  }
+  if (!res.ok && !data.connected) {
+    return { connected: false, error: (data.error as string) || `Request failed with status ${res.status}` }
+  }
+  return data as { connected: boolean; environment?: string; testResult?: string; error?: string }
 }
 
-/** Create a trip in Avinode via POST /trips */
+/** Create a trip in Avinode via POST /trips.
+ *  Builds the exact request body format Avinode expects:
+ *  { segments: [{ startAirport: { icao }, endAirport: { icao }, dateTime: { date, time?, departure, local }, paxCount, paxSegment, timeTBD }], sourcing: true }
+ */
 export async function createTrip(
   config: AvinodeConfig,
   segments: {
-    startAirportId: string
-    endAirportId: string
-    departureDate: string
-    departureTime?: string
+    startAirportIcao: string
+    endAirportIcao: string
+    date: string             // YYYY-MM-DD
+    time?: string            // HH:mm (24h), omit if timeTBD
     timeTBD?: boolean
     paxCount: number
   }[],
@@ -56,12 +75,39 @@ export async function createTrip(
     aircraftCategory?: string
     postToTripBoard?: boolean
     tripBoardPostMessage?: string
+    sourcing?: boolean
   }
-): Promise<{ data: AvinodeTrip; meta: { errors: { message: string }[]; warnings: { message: string }[]; infos: { message: string }[] } }> {
-  const body: Record<string, unknown> = { segments }
-  if (options?.aircraftCategory) body.aircraftCategory = options.aircraftCategory
+): Promise<{ data: AvinodeTrip; tripId?: string; meta?: { errors: { message: string }[]; warnings: { message: string }[]; infos: { message: string }[] } }> {
+  // Build the Avinode-formatted request body
+  const avinodeSegments = segments.map((seg) => ({
+    startAirport: { icao: seg.startAirportIcao },
+    endAirport: { icao: seg.endAirportIcao },
+    dateTime: {
+      date: seg.date,
+      ...(seg.time && !seg.timeTBD ? { time: seg.time } : {}),
+      departure: true,
+      local: true,
+    },
+    paxCount: String(seg.paxCount),
+    paxSegment: true,
+    paxTBD: false,
+    timeTBD: seg.timeTBD ?? false,
+  }))
+
+  const body: Record<string, unknown> = {
+    segments: avinodeSegments,
+    sourcing: options?.sourcing ?? true,
+  }
+
+  if (options?.aircraftCategory) {
+    body.criteria = {
+      requiredLift: [{ aircraftCategory: options.aircraftCategory, aircraftType: "", aircraftTail: "" }],
+    }
+  }
   if (options?.postToTripBoard) body.postToTripBoard = options.postToTripBoard
   if (options?.tripBoardPostMessage) body.tripBoardPostMessage = options.tripBoardPostMessage
+
+  console.log("[v0] createTrip: sending to /api/avinode/trips with body:", JSON.stringify(body))
 
   const res = await fetch("/api/avinode/trips", {
     method: "POST",
@@ -69,12 +115,23 @@ export async function createTrip(
     body: JSON.stringify(body),
   })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Unknown error" }))
-    throw new Error(err.details?.meta?.errors?.[0]?.message || err.error || `API error ${res.status}`)
+  const responseText = await res.text()
+  console.log("[v0] createTrip: response status:", res.status, "body:", responseText.slice(0, 500))
+
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(responseText)
+  } catch {
+    throw new Error(`Avinode returned non-JSON response (${res.status}): ${responseText.slice(0, 200)}`)
   }
 
-  return res.json()
+  if (!res.ok) {
+    const errorMsg = (data as { error?: string }).error || `API error ${res.status}`
+    console.log("[v0] createTrip: error:", errorMsg)
+    throw new Error(errorMsg)
+  }
+
+  return data as { data: AvinodeTrip; meta: { errors: { message: string }[]; warnings: { message: string }[]; infos: { message: string }[] } }
 }
 
 /** Search airports via GET /airports/search?filter=... */

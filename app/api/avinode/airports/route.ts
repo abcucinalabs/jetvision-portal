@@ -39,20 +39,29 @@ export async function GET(req: NextRequest) {
       { headers }
     )
 
-    const data = await res.json()
+    const responseText = await res.text()
+    let data: Record<string, unknown>
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      return NextResponse.json(
+        { error: `Avinode returned non-JSON response (${res.status})`, data: [] },
+        { status: 200 } // Return 200 with empty data to gracefully degrade
+      )
+    }
 
     if (!res.ok) {
       return NextResponse.json(
-        { error: "Avinode API error", status: res.status, details: data },
-        { status: res.status }
+        { error: "Avinode API error", status: res.status, details: data, data: [] },
+        { status: 200 } // Gracefully degrade
       )
     }
 
     return NextResponse.json(data)
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to connect to Avinode", message: String(error) },
-      { status: 500 }
+      { error: `Failed to connect to Avinode: ${error instanceof Error ? error.message : String(error)}`, data: [] },
+      { status: 200 } // Gracefully degrade
     )
   }
 }

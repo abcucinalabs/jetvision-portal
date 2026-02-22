@@ -24,37 +24,43 @@ import {
 } from "lucide-react"
 
 export function FlightRequestsView() {
-  const { currentUser, flightRequests, addFlightRequest } = useStore()
+  const {
+    currentUser,
+    flightRequests,
+    addFlightRequest,
+    avinodeConnected,
+    avinodeConfig,
+    updateFlightRequestAvinode,
+    addAvinodeActivity,
+  } = useStore()
   const [showForm, setShowForm] = useState(false)
+  const [sendingToAvinode, setSendingToAvinode] = useState<string | null>(null)
+  const [avinodeError, setAvinodeError] = useState<string | null>(null)
 
   if (!currentUser) return null
 
   const isManager = currentUser.role === "manager"
-  const { avinodeConnected, avinodeConfig, updateFlightRequestAvinode, addAvinodeActivity } = useStore()
 
   const requests = isManager
     ? flightRequests
     : flightRequests.filter((fr) => fr.isoId === currentUser.id)
-
-  const [sendingToAvinode, setSendingToAvinode] = useState<string | null>(null)
-  const [avinodeError, setAvinodeError] = useState<string | null>(null)
 
   const handleSendToAvinode = async (fr: FlightRequest) => {
     setSendingToAvinode(fr.id)
     setAvinodeError(null)
 
     try {
-      // Extract ICAO codes from airport strings like "Teterboro (KTEB)"
+      // Extract ICAO codes from airport strings like "Teterboro (KTEB)" or plain "KTEB"
       const extractIcao = (airportStr: string) => {
         const match = airportStr.match(/\(([A-Z]{4})\)/)
-        return match ? match[1] : airportStr
+        return match ? match[1] : airportStr.replace(/[^A-Z]/g, "").slice(0, 4)
       }
 
       const segments = [
         {
-          startAirportId: extractIcao(fr.departure),
-          endAirportId: extractIcao(fr.arrival),
-          departureDate: fr.departureDate,
+          startAirportIcao: extractIcao(fr.departure),
+          endAirportIcao: extractIcao(fr.arrival),
+          date: fr.departureDate,    // YYYY-MM-DD
           timeTBD: true,
           paxCount: fr.passengers,
         },
@@ -63,32 +69,39 @@ export function FlightRequestsView() {
       // Add return leg if round trip
       if (fr.returnDate) {
         segments.push({
-          startAirportId: extractIcao(fr.arrival),
-          endAirportId: extractIcao(fr.departure),
-          departureDate: fr.returnDate,
+          startAirportIcao: extractIcao(fr.arrival),
+          endAirportIcao: extractIcao(fr.departure),
+          date: fr.returnDate,
           timeTBD: true,
           paxCount: fr.passengers,
         })
       }
 
-      // Real API call via our proxy route
-      const response = await createTrip(avinodeConfig, segments)
+      // Real API call via our proxy route -- builds Avinode-format body internally
+      const response = await createTrip(avinodeConfig, segments, { sourcing: true })
+
+      // Avinode response shape: { data: { id, href, actions: { searchInAvinode, viewInAvinode } }, tripId: "XYZABC" }
       const trip = response.data
+      const tripId = response.tripId || trip?.id || "unknown"
+      const searchLink = trip?.actions?.searchInAvinode?.href
+      const viewLink = trip?.actions?.viewInAvinode?.href
+
+      console.log("[v0] handleSendToAvinode: tripId:", tripId, "searchLink:", searchLink, "viewLink:", viewLink)
 
       updateFlightRequestAvinode(fr.id, {
-        avinodeTripId: trip.tripId || trip.id,
-        avinodeTripHref: trip.href,
-        avinodeSearchLink: trip.actions?.searchInAvinode?.href || undefined,
-        avinodeViewLink: trip.actions?.viewInAvinode?.href || undefined,
+        avinodeTripId: tripId,
+        avinodeTripHref: trip?.href,
+        avinodeSearchLink: searchLink || undefined,
+        avinodeViewLink: viewLink || undefined,
         avinodeStatus: "sent_to_avinode",
       })
 
       addAvinodeActivity({
         type: "trip_created",
         title: "Trip Created in Avinode",
-        description: `Trip for ${fr.clientName}: ${fr.departure} to ${fr.arrival} on ${fr.departureDate}. ${fr.passengers} passengers. Trip ID: ${trip.tripId || trip.id}`,
+        description: `Trip for ${fr.clientName}: ${fr.departure} to ${fr.arrival} on ${fr.departureDate}. ${fr.passengers} passengers. Trip ID: ${tripId}`,
         flightRequestId: fr.id,
-        avinodeTripId: trip.tripId || trip.id,
+        avinodeTripId: tripId,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create trip in Avinode"
