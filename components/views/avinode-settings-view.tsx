@@ -7,6 +7,7 @@ import {
   AVINODE_LIVE_URL,
   type AvinodeWebhookEventType,
 } from "@/lib/avinode"
+import { testConnection, configureWebhooks } from "@/lib/avinode-client"
 import {
   Settings,
   Shield,
@@ -78,21 +79,49 @@ export function AvinodeSettingsView() {
 
   const [activeTab, setActiveTab] = useState<"connection" | "webhooks" | "activity">("connection")
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle")
+  const [testMessage, setTestMessage] = useState("")
   const [webhookUrl, setWebhookUrl] = useState("https://api.jetstream.com/webhooks/avinode")
+  const [webhookSaving, setWebhookSaving] = useState(false)
+  const [webhookSaved, setWebhookSaved] = useState(false)
+  const [webhookError, setWebhookError] = useState("")
 
   if (!currentUser || currentUser.role !== "manager") return null
 
-  const handleTestConnection = () => {
+  const handleTestConnection = async () => {
     setTestStatus("testing")
-    // Simulate connection test
-    setTimeout(() => {
-      if (avinodeConfig.apiToken && avinodeConfig.authToken) {
+    setTestMessage("")
+    try {
+      const result = await testConnection(avinodeConfig)
+      if (result.connected) {
         setTestStatus("success")
+        setTestMessage(result.testResult || `Connected to ${result.environment}`)
       } else {
         setTestStatus("error")
+        setTestMessage(result.error || "Connection failed")
       }
-      setTimeout(() => setTestStatus("idle"), 3000)
-    }, 1500)
+    } catch {
+      setTestStatus("error")
+      setTestMessage("Could not reach the Avinode API")
+    }
+    setTimeout(() => setTestStatus("idle"), 5000)
+  }
+
+  const handleSaveWebhooks = async () => {
+    setWebhookSaving(true)
+    setWebhookError("")
+    try {
+      await configureWebhooks(avinodeConfig, {
+        url: webhookUrl,
+        eventTypes: avinodeWebhookEvents,
+        active: true,
+      })
+      setWebhookSaved(true)
+      setTimeout(() => setWebhookSaved(false), 3000)
+    } catch (err) {
+      setWebhookError(err instanceof Error ? err.message : "Failed to save webhook settings")
+    } finally {
+      setWebhookSaving(false)
+    }
   }
 
   const toggleWebhookEvent = (eventType: AvinodeWebhookEventType) => {
@@ -275,7 +304,7 @@ export function AvinodeSettingsView() {
                 ) : testStatus === "error" ? (
                   <>
                     <AlertCircle className="h-3.5 w-3.5 text-destructive" />
-                    Failed
+                    {testMessage || "Failed"}
                   </>
                 ) : (
                   <>
@@ -418,6 +447,37 @@ export function AvinodeSettingsView() {
                 These cover the full sourcing workflow from sending RFQs to receiving operator quotes and messages.
               </p>
             </div>
+          </div>
+
+          {/* Save Webhooks Button */}
+          <div className="flex items-center justify-between">
+            {webhookError && (
+              <p className="text-sm text-destructive">{webhookError}</p>
+            )}
+            {webhookSaved && (
+              <div className="flex items-center gap-1.5 text-sm text-green-600">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Webhook settings saved to Avinode
+              </div>
+            )}
+            {!webhookError && !webhookSaved && <div />}
+            <button
+              onClick={handleSaveWebhooks}
+              disabled={!avinodeConnected || webhookSaving || avinodeWebhookEvents.length === 0}
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {webhookSaving ? (
+                <>
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Webhook className="h-3.5 w-3.5" />
+                  Save to Avinode
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}

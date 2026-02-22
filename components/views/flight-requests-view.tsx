@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { useStore, type Customer, type FlightRequest } from "@/lib/store"
+import { createTrip } from "@/lib/avinode-client"
 import {
   PlaneTakeoff,
   Plus,
@@ -19,6 +20,7 @@ import {
   CheckCircle2,
   MessageSquare,
   XCircle,
+  AlertCircle,
 } from "lucide-react"
 
 export function FlightRequestsView() {
@@ -28,34 +30,78 @@ export function FlightRequestsView() {
   if (!currentUser) return null
 
   const isManager = currentUser.role === "manager"
-  const { avinodeConnected, updateFlightRequestAvinode, addAvinodeActivity } = useStore()
+  const { avinodeConnected, avinodeConfig, updateFlightRequestAvinode, addAvinodeActivity } = useStore()
 
   const requests = isManager
     ? flightRequests
     : flightRequests.filter((fr) => fr.isoId === currentUser.id)
 
   const [sendingToAvinode, setSendingToAvinode] = useState<string | null>(null)
+  const [avinodeError, setAvinodeError] = useState<string | null>(null)
 
-  const handleSendToAvinode = (fr: FlightRequest) => {
+  const handleSendToAvinode = async (fr: FlightRequest) => {
     setSendingToAvinode(fr.id)
-    // Simulate POST /trips API call
-    setTimeout(() => {
-      const tripId = `JS${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+    setAvinodeError(null)
+
+    try {
+      // Extract ICAO codes from airport strings like "Teterboro (KTEB)"
+      const extractIcao = (airportStr: string) => {
+        const match = airportStr.match(/\(([A-Z]{4})\)/)
+        return match ? match[1] : airportStr
+      }
+
+      const segments = [
+        {
+          startAirportId: extractIcao(fr.departure),
+          endAirportId: extractIcao(fr.arrival),
+          departureDate: fr.departureDate,
+          timeTBD: true,
+          paxCount: fr.passengers,
+        },
+      ]
+
+      // Add return leg if round trip
+      if (fr.returnDate) {
+        segments.push({
+          startAirportId: extractIcao(fr.arrival),
+          endAirportId: extractIcao(fr.departure),
+          departureDate: fr.returnDate,
+          timeTBD: true,
+          paxCount: fr.passengers,
+        })
+      }
+
+      // Real API call via our proxy route
+      const response = await createTrip(avinodeConfig, segments)
+      const trip = response.data
+
       updateFlightRequestAvinode(fr.id, {
-        avinodeTripId: tripId,
-        avinodeSearchLink: `https://marketplace.avinode.com/marketplace/mvc/search/load/${tripId}?source=api`,
-        avinodeViewLink: `https://marketplace.avinode.com/marketplace/mvc/trips/buying/${tripId}?source=api`,
+        avinodeTripId: trip.tripId || trip.id,
+        avinodeTripHref: trip.href,
+        avinodeSearchLink: trip.actions?.searchInAvinode?.href || undefined,
+        avinodeViewLink: trip.actions?.viewInAvinode?.href || undefined,
         avinodeStatus: "sent_to_avinode",
       })
+
       addAvinodeActivity({
         type: "trip_created",
         title: "Trip Created in Avinode",
-        description: `Trip for ${fr.clientName}: ${fr.departure} to ${fr.arrival} on ${fr.departureDate}. ${fr.passengers} passengers. Use the search deep link to find available aircraft.`,
+        description: `Trip for ${fr.clientName}: ${fr.departure} to ${fr.arrival} on ${fr.departureDate}. ${fr.passengers} passengers. Trip ID: ${trip.tripId || trip.id}`,
         flightRequestId: fr.id,
-        avinodeTripId: tripId,
+        avinodeTripId: trip.tripId || trip.id,
       })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create trip in Avinode"
+      setAvinodeError(message)
+      addAvinodeActivity({
+        type: "trip_cancelled",
+        title: "Trip Creation Failed",
+        description: `Failed to create trip for ${fr.clientName}: ${message}`,
+        flightRequestId: fr.id,
+      })
+    } finally {
       setSendingToAvinode(null)
-    }, 1500)
+    }
   }
 
   return (
@@ -79,6 +125,20 @@ export function FlightRequestsView() {
           </button>
         )}
       </div>
+
+      {avinodeError && (
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3">
+          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+          <p className="flex-1 text-sm text-destructive">{avinodeError}</p>
+          <button
+            onClick={() => setAvinodeError(null)}
+            className="rounded-md p-1 text-destructive hover:bg-destructive/10"
+            aria-label="Dismiss error"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {showForm && (
         <NewFlightRequestForm
