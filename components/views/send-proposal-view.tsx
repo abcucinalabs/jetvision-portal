@@ -23,6 +23,8 @@ export function SendProposalView() {
   const [selectedRequest, setSelectedRequest] = useState<FlightRequest | null>(null)
   const [selectedJetId, setSelectedJetId] = useState("")
   const [price, setPrice] = useState("")
+  const [isoCommissionPct, setIsoCommissionPct] = useState(10)
+  const [jetstreamCostPct, setJetstreamCostPct] = useState(15)
   const [notes, setNotes] = useState("")
   const [sent, setSent] = useState(false)
 
@@ -50,6 +52,8 @@ export function SendProposalView() {
       departureDate: selectedRequest.departureDate,
       returnDate: selectedRequest.returnDate,
       price: parseFloat(price),
+      isoCommissionPct,
+      jetstreamCostPct,
       notes: notes || undefined,
     })
 
@@ -58,6 +62,8 @@ export function SendProposalView() {
     setSelectedRequest(null)
     setSelectedJetId("")
     setPrice("")
+    setIsoCommissionPct(10)
+    setJetstreamCostPct(15)
     setNotes("")
     setSent(true)
     setTimeout(() => setSent(false), 3000)
@@ -188,6 +194,95 @@ export function SendProposalView() {
                 placeholder="e.g. 45000"
               />
             </label>
+
+            {/* Commission & Cost Section */}
+            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Commission & Cost Breakdown
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    ISO Commission (%)
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={5}
+                      max={20}
+                      step={1}
+                      value={isoCommissionPct}
+                      onChange={(e) => setIsoCommissionPct(parseInt(e.target.value))}
+                      className="flex-1 accent-primary"
+                    />
+                    <span className="w-12 rounded-md border border-input bg-background px-2 py-1 text-center text-sm font-semibold text-foreground">
+                      {isoCommissionPct}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>5%</span>
+                    <span>Default: 10%</span>
+                    <span>20%</span>
+                  </div>
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    JetStream Costs (%)
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={5}
+                      max={25}
+                      step={1}
+                      value={jetstreamCostPct}
+                      onChange={(e) => setJetstreamCostPct(parseInt(e.target.value))}
+                      className="flex-1 accent-primary"
+                    />
+                    <span className="w-12 rounded-md border border-input bg-background px-2 py-1 text-center text-sm font-semibold text-foreground">
+                      {jetstreamCostPct}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                    <span>5%</span>
+                    <span>Default: 15%</span>
+                    <span>25%</span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Live Preview */}
+              {price && parseFloat(price) > 0 && (
+                <div className="rounded-md border border-border bg-card p-3">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        ISO Commission
+                      </div>
+                      <div className="mt-0.5 text-sm font-bold text-accent">
+                        ${(parseFloat(price) * isoCommissionPct / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        JetStream Costs
+                      </div>
+                      <div className="mt-0.5 text-sm font-bold text-primary">
+                        ${(parseFloat(price) * jetstreamCostPct / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        Combined
+                      </div>
+                      <div className="mt-0.5 text-sm font-bold text-foreground">
+                        ${(parseFloat(price) * (isoCommissionPct + jetstreamCostPct) / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <label className="block space-y-1.5">
               <span className="text-xs font-medium text-muted-foreground">

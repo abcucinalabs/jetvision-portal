@@ -77,6 +77,8 @@ export interface Proposal {
   departureDate: string
   returnDate?: string
   price: number
+  isoCommissionPct: number   // 5–20%, default 10%
+  jetstreamCostPct: number   // 5–25%
   notes?: string
   status: "pending" | "sent_to_client" | "accepted" | "declined"
   createdAt: string
@@ -196,6 +198,8 @@ const SEED_PROPOSALS: Proposal[] = [
     departureDate: "2026-04-01",
     returnDate: "2026-04-05",
     price: 68500,
+    isoCommissionPct: 10,
+    jetstreamCostPct: 15,
     notes: "Round trip pricing. Includes ground transportation at both airports.",
     status: "pending",
     createdAt: "2026-02-10T12:00:00Z",

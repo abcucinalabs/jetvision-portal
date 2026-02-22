@@ -8,6 +8,8 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  DollarSign,
+  Percent,
 } from "lucide-react"
 import type { PortalView } from "@/components/sidebar-nav"
 
@@ -30,6 +32,13 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     ? proposals
     : proposals.filter((p) => p.isoId === currentUser.id)
 
+  const totalIsoCommission = isManager
+    ? myProposals.reduce((sum, p) => sum + (p.price * (p.isoCommissionPct ?? 0)) / 100, 0)
+    : 0
+  const totalJetstreamCost = isManager
+    ? myProposals.reduce((sum, p) => sum + (p.price * (p.jetstreamCostPct ?? 0)) / 100, 0)
+    : 0
+
   const stats = [
     {
       label: isManager ? "Pending Requests" : "My Requests",
@@ -37,6 +46,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       icon: PlaneTakeoff,
       color: "bg-primary/10 text-primary",
       onClick: () => onNavigate("flight-requests"),
+      formatted: false,
     },
     {
       label: isManager ? "Total Proposals" : "My Proposals",
@@ -44,6 +54,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       icon: FileText,
       color: "bg-accent/10 text-accent",
       onClick: () => onNavigate("proposals"),
+      formatted: false,
     },
     {
       label: "Unread Notifications",
@@ -51,7 +62,28 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       icon: Bell,
       color: "bg-destructive/10 text-destructive",
       onClick: () => onNavigate("notifications"),
+      formatted: false,
     },
+    ...(isManager
+      ? [
+          {
+            label: "ISO Commissions",
+            value: totalIsoCommission,
+            icon: Percent,
+            color: "bg-accent/10 text-accent",
+            onClick: () => onNavigate("proposals"),
+            formatted: true,
+          },
+          {
+            label: "JetStream Costs",
+            value: totalJetstreamCost,
+            icon: DollarSign,
+            color: "bg-primary/10 text-primary",
+            onClick: () => onNavigate("proposals"),
+            formatted: true,
+          },
+        ]
+      : []),
   ]
 
   const recentRequests = (isManager ? flightRequests : myRequests).slice(0, 5)
@@ -76,7 +108,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={`grid gap-4 ${isManager ? "sm:grid-cols-3 lg:grid-cols-5" : "sm:grid-cols-3"}`}>
         {stats.map((stat) => (
           <button
             key={stat.label}
@@ -87,7 +119,11 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
               <stat.icon className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-card-foreground">{stat.value}</div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {stat.formatted
+                  ? `$${stat.value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                  : stat.value}
+              </div>
               <div className="text-xs text-muted-foreground">{stat.label}</div>
             </div>
           </button>
