@@ -24,20 +24,26 @@ import {
 } from "lucide-react"
 
 export function FlightRequestsView() {
-  const { currentUser, flightRequests, addFlightRequest } = useStore()
+  const {
+    currentUser,
+    flightRequests,
+    addFlightRequest,
+    avinodeConnected,
+    avinodeConfig,
+    updateFlightRequestAvinode,
+    addAvinodeActivity,
+  } = useStore()
   const [showForm, setShowForm] = useState(false)
+  const [sendingToAvinode, setSendingToAvinode] = useState<string | null>(null)
+  const [avinodeError, setAvinodeError] = useState<string | null>(null)
 
   if (!currentUser) return null
 
   const isManager = currentUser.role === "manager"
-  const { avinodeConnected, avinodeConfig, updateFlightRequestAvinode, addAvinodeActivity } = useStore()
 
   const requests = isManager
     ? flightRequests
     : flightRequests.filter((fr) => fr.isoId === currentUser.id)
-
-  const [sendingToAvinode, setSendingToAvinode] = useState<string | null>(null)
-  const [avinodeError, setAvinodeError] = useState<string | null>(null)
 
   const handleSendToAvinode = async (fr: FlightRequest) => {
     setSendingToAvinode(fr.id)

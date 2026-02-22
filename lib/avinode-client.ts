@@ -28,17 +28,33 @@ export async function testConnection(config: AvinodeConfig): Promise<{
   testResult?: string
   error?: string
 }> {
-  const params = new URLSearchParams({
-    apiToken: config.apiToken,
-    authToken: config.authToken,
-    baseUrl: config.baseUrl,
-    product: config.product,
-    apiVersion: config.apiVersion,
-  })
-  if (config.actAsAccount) params.set("actAsAccount", config.actAsAccount)
+  console.log("[v0] testConnection: calling /api/avinode/test with baseUrl:", config.baseUrl)
 
-  const res = await fetch(`/api/avinode/test?${params.toString()}`)
-  return res.json()
+  const res = await fetch("/api/avinode/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      apiToken: config.apiToken,
+      authToken: config.authToken,
+      baseUrl: config.baseUrl,
+      product: config.product,
+      apiVersion: config.apiVersion,
+      actAsAccount: config.actAsAccount || undefined,
+    }),
+  })
+  const responseText = await res.text()
+  console.log("[v0] testConnection: response status:", res.status, "body:", responseText.slice(0, 500))
+
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(responseText)
+  } catch {
+    return { connected: false, error: `Non-JSON response (${res.status}): ${responseText.slice(0, 200)}` }
+  }
+  if (!res.ok && !data.connected) {
+    return { connected: false, error: (data.error as string) || `Request failed with status ${res.status}` }
+  }
+  return data as { connected: boolean; environment?: string; testResult?: string; error?: string }
 }
 
 /** Create a trip in Avinode via POST /trips */
@@ -63,18 +79,31 @@ export async function createTrip(
   if (options?.postToTripBoard) body.postToTripBoard = options.postToTripBoard
   if (options?.tripBoardPostMessage) body.tripBoardPostMessage = options.tripBoardPostMessage
 
+  console.log("[v0] createTrip: sending to /api/avinode/trips with segments:", JSON.stringify(body))
+
   const res = await fetch("/api/avinode/trips", {
     method: "POST",
     headers: buildProxyHeaders(config),
     body: JSON.stringify(body),
   })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Unknown error" }))
-    throw new Error(err.details?.meta?.errors?.[0]?.message || err.error || `API error ${res.status}`)
+  const responseText = await res.text()
+  console.log("[v0] createTrip: response status:", res.status, "body:", responseText.slice(0, 500))
+
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(responseText)
+  } catch {
+    throw new Error(`Avinode returned non-JSON response (${res.status}): ${responseText.slice(0, 200)}`)
   }
 
-  return res.json()
+  if (!res.ok) {
+    const errorMsg = (data as { error?: string }).error || `API error ${res.status}`
+    console.log("[v0] createTrip: error:", errorMsg)
+    throw new Error(errorMsg)
+  }
+
+  return data as { data: AvinodeTrip; meta: { errors: { message: string }[]; warnings: { message: string }[]; infos: { message: string }[] } }
 }
 
 /** Search airports via GET /airports/search?filter=... */
