@@ -225,7 +225,7 @@ export function AvinodeSettingsView() {
 
               <label className="block space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">
-                  API Token (X-Avinode-ApiToken) *
+                  API Token *
                 </span>
                 <input
                   type="password"
@@ -235,13 +235,13 @@ export function AvinodeSettingsView() {
                   placeholder="229B8C9E-B3F2-4FA6-8BAE-71DF00943C0E"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Unique token identifying JetStream Portal. Hard-coded per Avinode requirements.
+                  Found in the Avinode developer portal as "OAuth Secret" or "API Key." Sent as the <code className="font-mono bg-muted px-1 rounded">X-Avinode-ApiToken</code> header. Identifies your application.
                 </p>
               </label>
 
               <label className="block space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">
-                  Authorization Token (Bearer) *
+                  Authentication Token *
                 </span>
                 <input
                   type="password"
@@ -251,7 +251,7 @@ export function AvinodeSettingsView() {
                   placeholder="eyJraWQiOiIxNkVBQkQ5RS1BM0..."
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Bearer authentication token for the API connection. Treat with same care as a password.
+                  Found in the Avinode developer portal as "Authentication Token." This is the JWT-style Bearer token (starts with <code className="font-mono bg-muted px-1 rounded">eyJ...</code>) that authorizes your API connection. Treat like a password.
                 </p>
               </label>
 

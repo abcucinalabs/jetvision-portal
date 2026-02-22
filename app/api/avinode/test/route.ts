@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 // GET /api/avinode/test - Test connection by searching for a known airport
 export async function GET(req: NextRequest) {
   try {
+    // AVINODE_API_TOKEN = OAuth Secret / API Key (X-Avinode-ApiToken header)
+    // AVINODE_AUTH_TOKEN = Authentication Token / JWT Bearer (Authorization header)
     const apiToken = req.nextUrl.searchParams.get("apiToken") || process.env.AVINODE_API_TOKEN || ""
     const authToken = req.nextUrl.searchParams.get("authToken") || process.env.AVINODE_AUTH_TOKEN || ""
     const baseUrl = req.nextUrl.searchParams.get("baseUrl") || process.env.AVINODE_BASE_URL || "https://sandbox.avinode.com/api"

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 
 function getHeaders(req: NextRequest) {
+  // AVINODE_API_TOKEN = OAuth Secret / API Key from Avinode developer portal (sent as X-Avinode-ApiToken)
+  // AVINODE_AUTH_TOKEN = Authentication Token / JWT Bearer token from Avinode portal (sent as Authorization: Bearer)
   const apiToken = req.headers.get("x-avinode-apitoken") || process.env.AVINODE_API_TOKEN || ""
   const authToken = req.headers.get("x-avinode-authtoken") || process.env.AVINODE_AUTH_TOKEN || ""
   const product = req.headers.get("x-avinode-product") || "JetStream Portal v1.0"
