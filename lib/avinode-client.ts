@@ -57,14 +57,17 @@ export async function testConnection(config: AvinodeConfig): Promise<{
   return data as { connected: boolean; environment?: string; testResult?: string; error?: string }
 }
 
-/** Create a trip in Avinode via POST /trips */
+/** Create a trip in Avinode via POST /trips.
+ *  Builds the exact request body format Avinode expects:
+ *  { segments: [{ startAirport: { icao }, endAirport: { icao }, dateTime: { date, time?, departure, local }, paxCount, paxSegment, timeTBD }], sourcing: true }
+ */
 export async function createTrip(
   config: AvinodeConfig,
   segments: {
-    startAirportId: string
-    endAirportId: string
-    departureDate: string
-    departureTime?: string
+    startAirportIcao: string
+    endAirportIcao: string
+    date: string             // YYYY-MM-DD
+    time?: string            // HH:mm (24h), omit if timeTBD
     timeTBD?: boolean
     paxCount: number
   }[],
@@ -72,14 +75,39 @@ export async function createTrip(
     aircraftCategory?: string
     postToTripBoard?: boolean
     tripBoardPostMessage?: string
+    sourcing?: boolean
   }
-): Promise<{ data: AvinodeTrip; meta: { errors: { message: string }[]; warnings: { message: string }[]; infos: { message: string }[] } }> {
-  const body: Record<string, unknown> = { segments }
-  if (options?.aircraftCategory) body.aircraftCategory = options.aircraftCategory
+): Promise<{ data: AvinodeTrip; tripId?: string; meta?: { errors: { message: string }[]; warnings: { message: string }[]; infos: { message: string }[] } }> {
+  // Build the Avinode-formatted request body
+  const avinodeSegments = segments.map((seg) => ({
+    startAirport: { icao: seg.startAirportIcao },
+    endAirport: { icao: seg.endAirportIcao },
+    dateTime: {
+      date: seg.date,
+      ...(seg.time && !seg.timeTBD ? { time: seg.time } : {}),
+      departure: true,
+      local: true,
+    },
+    paxCount: String(seg.paxCount),
+    paxSegment: true,
+    paxTBD: false,
+    timeTBD: seg.timeTBD ?? false,
+  }))
+
+  const body: Record<string, unknown> = {
+    segments: avinodeSegments,
+    sourcing: options?.sourcing ?? true,
+  }
+
+  if (options?.aircraftCategory) {
+    body.criteria = {
+      requiredLift: [{ aircraftCategory: options.aircraftCategory, aircraftType: "", aircraftTail: "" }],
+    }
+  }
   if (options?.postToTripBoard) body.postToTripBoard = options.postToTripBoard
   if (options?.tripBoardPostMessage) body.tripBoardPostMessage = options.tripBoardPostMessage
 
-  console.log("[v0] createTrip: sending to /api/avinode/trips with segments:", JSON.stringify(body))
+  console.log("[v0] createTrip: sending to /api/avinode/trips with body:", JSON.stringify(body))
 
   const res = await fetch("/api/avinode/trips", {
     method: "POST",
