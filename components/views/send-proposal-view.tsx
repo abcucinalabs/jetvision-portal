@@ -216,7 +216,7 @@ export function SendProposalView() {
                   <span>
                     {avinodeConnected
                       ? "This request has not been sent to Avinode yet. Go to Flight Requests to send it."
-                      : "Connect Avinode in Settings to source flights from the marketplace."}
+                      : "Avinode credentials are not configured in environment variables."}
                   </span>
                 </div>
               </div>

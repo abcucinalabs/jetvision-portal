@@ -10,21 +10,21 @@ import {
   ShoppingBag,
   LogOut,
   PlaneTakeoff,
+  MessageSquare,
   Menu,
   X,
-  Globe,
 } from "lucide-react"
 import { useState } from "react"
 
 export type PortalView =
   | "dashboard"
   | "flight-requests"
+  | "rfq-operations"
   | "notifications"
   | "proposals"
   | "marketplace"
   | "send-notification"
   | "send-proposal"
-  | "avinode-settings"
 
 interface SidebarNavProps {
   activeView: PortalView
@@ -42,14 +42,14 @@ const MANAGER_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboa
   { label: "Notifications", view: "notifications", icon: Bell },
   { label: "Dashboard", view: "dashboard", icon: LayoutDashboard },
   { label: "Flight Requests", view: "flight-requests", icon: PlaneTakeoff },
+  { label: "RFQ Operations", view: "rfq-operations", icon: MessageSquare },
   { label: "Send Proposal", view: "send-proposal", icon: Send },
   { label: "Proposals", view: "proposals", icon: FileText },
   { label: "Send Notification", view: "send-notification", icon: Bell },
-  { label: "Avinode", view: "avinode-settings", icon: Globe },
 ]
 
 export function SidebarNav({ activeView, onNavigate }: SidebarNavProps) {
-  const { currentUser, logout, unreadCount, avinodeConnected } = useStore()
+  const { currentUser, logout, unreadCount } = useStore()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   if (!currentUser) return null
@@ -94,12 +94,6 @@ export function SidebarNav({ activeView, onNavigate }: SidebarNavProps) {
                 <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-accent-foreground">
                   {unreadCount}
                 </span>
-              )}
-              {item.view === "avinode-settings" && (
-                <span
-                  className={`ml-auto h-2 w-2 rounded-full ${avinodeConnected ? "bg-green-500" : "bg-destructive"}`}
-                  title={avinodeConnected ? "Connected" : "Not connected"}
-                />
               )}
             </button>
           )

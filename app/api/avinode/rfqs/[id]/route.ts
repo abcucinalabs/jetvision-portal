@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 
-function getHeaders(req: NextRequest) {
-  const apiToken = req.headers.get("x-avinode-apitoken") || process.env.AVINODE_API_TOKEN || ""
-  const authToken = req.headers.get("x-avinode-authtoken") || process.env.AVINODE_AUTH_TOKEN || ""
-  const product = req.headers.get("x-avinode-product") || "JetStream Portal v1.0"
-  const apiVersion = req.headers.get("x-avinode-apiversion") || "v1.0"
-  const actAsAccount = req.headers.get("x-avinode-actasaccount") || ""
+function getHeaders() {
+  const apiToken = process.env.AVINODE_API_TOKEN || ""
+  const authToken = process.env.AVINODE_AUTH_TOKEN || ""
+  const product = process.env.AVINODE_PRODUCT || "JetStream Portal v1.0"
+  const apiVersion = process.env.AVINODE_API_VERSION || "v1.0"
+  const actAsAccount = process.env.AVINODE_ACT_AS_ACCOUNT || ""
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -19,8 +19,8 @@ function getHeaders(req: NextRequest) {
   return headers
 }
 
-function getBaseUrl(req: NextRequest) {
-  return req.headers.get("x-avinode-baseurl") || process.env.AVINODE_BASE_URL || "https://sandbox.avinode.com/api"
+function getBaseUrl() {
+  return process.env.AVINODE_BASE_URL || "https://sandbox.avinode.com/api"
 }
 
 // GET /api/avinode/rfqs/[id] - Download an RFQ with quote data
@@ -28,8 +28,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params
     const fields = req.nextUrl.searchParams.get("fields") || ""
-    const baseUrl = getBaseUrl(req)
-    const headers = getHeaders(req)
+    const baseUrl = getBaseUrl()
+    const headers = getHeaders()
 
     const queryParams = fields ? `?fields=${fields}` : ""
     const res = await fetch(`${baseUrl}/rfqs/${id}${queryParams}`, { headers })

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 
-function getHeaders(req: NextRequest) {
+function getHeaders() {
   // AVINODE_API_TOKEN = OAuth Secret / API Key from Avinode developer portal (sent as X-Avinode-ApiToken)
   // AVINODE_AUTH_TOKEN = Authentication Token / JWT Bearer token from Avinode portal (sent as Authorization: Bearer)
-  const apiToken = req.headers.get("x-avinode-apitoken") || process.env.AVINODE_API_TOKEN || ""
-  const authToken = req.headers.get("x-avinode-authtoken") || process.env.AVINODE_AUTH_TOKEN || ""
-  const product = req.headers.get("x-avinode-product") || "JetStream Portal v1.0"
-  const apiVersion = req.headers.get("x-avinode-apiversion") || "v1.0"
-  const actAsAccount = req.headers.get("x-avinode-actasaccount") || ""
+  const apiToken = process.env.AVINODE_API_TOKEN || ""
+  const authToken = process.env.AVINODE_AUTH_TOKEN || ""
+  const product = process.env.AVINODE_PRODUCT || "JetStream Portal v1.0"
+  const apiVersion = process.env.AVINODE_API_VERSION || "v1.0"
+  const actAsAccount = process.env.AVINODE_ACT_AS_ACCOUNT || ""
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -24,16 +24,16 @@ function getHeaders(req: NextRequest) {
   return headers
 }
 
-function getBaseUrl(req: NextRequest) {
-  return req.headers.get("x-avinode-baseurl") || process.env.AVINODE_BASE_URL || "https://sandbox.avinode.com/api"
+function getBaseUrl() {
+  return process.env.AVINODE_BASE_URL || "https://sandbox.avinode.com/api"
 }
 
 // POST /api/avinode/trips - Create a trip in Avinode
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const baseUrl = getBaseUrl(req)
-    const headers = getHeaders(req)
+    const baseUrl = getBaseUrl()
+    const headers = getHeaders()
 
     const res = await fetch(`${baseUrl}/trips`, {
       method: "POST",
@@ -53,8 +53,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (!res.ok) {
-      const errorMessage = (data?.meta as Record<string, unknown[]>)?.errors?.[0]
-        ? ((data.meta as Record<string, { message: string }[]>).errors[0].message)
+      const firstError = ((data?.meta as { errors?: { message?: string; title?: string; path?: string }[] } | undefined)?.errors || [])[0]
+      const errorMessage = firstError
+        ? `${firstError.title || firstError.message || "Avinode validation error"}${firstError.path ? ` (${firstError.path})` : ""}`
         : (data?.error as string) || `Avinode API error ${res.status}`
       return NextResponse.json(
         { error: errorMessage, status: res.status, details: data },

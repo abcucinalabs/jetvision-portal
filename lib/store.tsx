@@ -1,13 +1,8 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
 import {
-  type AvinodeConfig,
-  type AvinodeTrip,
-  type AvinodeRfq,
-  type AvinodeQuote,
   type AvinodeWebhookEventType,
-  DEFAULT_CONFIG,
 } from "@/lib/avinode"
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -56,6 +51,14 @@ export interface FlightRequest {
   avinodeSearchLink?: string    // Deep link to search in Avinode
   avinodeViewLink?: string      // Deep link to view in Avinode
   avinodeRfqIds?: string[]      // Associated RFQ IDs from Avinode
+  avinodeQuoteIds?: string[]    // Associated quote IDs from Avinode
+  avinodeQuoteCount?: number
+  avinodeBestQuoteAmount?: number
+  avinodeBestQuoteCurrency?: string
+  avinodeFirstQuoteAt?: string
+  avinodeLastSyncAt?: string
+  avinodeSlaDueAt?: string
+  avinodeSlaStatus?: "on_track" | "at_risk" | "overdue" | "met"
   avinodeStatus?: "not_sent" | "sent_to_avinode" | "rfq_sent" | "quotes_received" | "booked" | "cancelled"
 }
 
@@ -361,15 +364,14 @@ interface StoreContextType {
   marketplaceJets: MarketplaceJet[]
 
   // Avinode integration
-  avinodeConfig: AvinodeConfig
-  setAvinodeConfig: (config: Partial<AvinodeConfig>) => void
   avinodeConnected: boolean
   avinodeActivity: AvinodeActivityItem[]
   addAvinodeActivity: (item: Omit<AvinodeActivityItem, "id" | "timestamp">) => void
   updateFlightRequestAvinode: (
     id: string,
-    data: Partial<Pick<FlightRequest, "avinodeTripId" | "avinodeTripHref" | "avinodeSearchLink" | "avinodeViewLink" | "avinodeRfqIds" | "avinodeStatus">>
+    data: Partial<Pick<FlightRequest, "avinodeTripId" | "avinodeTripHref" | "avinodeSearchLink" | "avinodeViewLink" | "avinodeRfqIds" | "avinodeQuoteIds" | "avinodeQuoteCount" | "avinodeBestQuoteAmount" | "avinodeBestQuoteCurrency" | "avinodeFirstQuoteAt" | "avinodeLastSyncAt" | "avinodeSlaDueAt" | "avinodeSlaStatus" | "avinodeStatus">>
   ) => void
+  syncFlightRequestPipeline: (id: string) => Promise<void>
   avinodeWebhookEvents: AvinodeWebhookEventType[]
   setAvinodeWebhookEvents: (events: AvinodeWebhookEventType[]) => void
 }
@@ -398,7 +400,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [flightRequests, setFlightRequests] = useState<FlightRequest[]>(SEED_FLIGHT_REQUESTS)
   const [proposals, setProposals] = useState<Proposal[]>(SEED_PROPOSALS)
   const [customers, setCustomers] = useState<Customer[]>(SEED_CUSTOMERS)
-  const [avinodeConfig, setAvinodeConfigState] = useState<AvinodeConfig>(DEFAULT_CONFIG)
+  const [avinodeConnected, setAvinodeConnected] = useState(false)
   const [avinodeActivity, setAvinodeActivity] = useState<AvinodeActivityItem[]>([
     {
       id: "av-seed-1",
@@ -436,6 +438,64 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     "ClientLeads",
   ])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const loadData = async () => {
+      try {
+        const [customersRes, requestsRes] = await Promise.all([
+          fetch("/api/customers"),
+          fetch("/api/flight-requests"),
+        ])
+
+        if (!cancelled && customersRes.ok) {
+          const customersJson = await customersRes.json()
+          if (Array.isArray(customersJson.data)) {
+            setCustomers(customersJson.data)
+          }
+        }
+
+        if (!cancelled && requestsRes.ok) {
+          const requestsJson = await requestsRes.json()
+          if (Array.isArray(requestsJson.data)) {
+            setFlightRequests(requestsJson.data)
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load Supabase-backed data:", error)
+      }
+    }
+
+    void loadData()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const checkAvinodeStatus = async () => {
+      try {
+        const res = await fetch("/api/avinode/status")
+        if (!res.ok) return
+        const json = await res.json()
+        if (!cancelled) {
+          setAvinodeConnected(Boolean(json.connected))
+        }
+      } catch {
+        if (!cancelled) {
+          setAvinodeConnected(false)
+        }
+      }
+    }
+
+    void checkAvinodeStatus()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const login = useCallback((userId: string) => {
     const user = USERS.find((u) => u.id === userId)
     if (user) setCurrentUser(user)
@@ -471,21 +531,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addFlightRequest = useCallback(
     (fr: Omit<FlightRequest, "id" | "createdAt" | "status">) => {
-      setFlightRequests((prev) => [
-        {
-          ...fr,
-          id: `fr-${Date.now()}`,
-          createdAt: new Date().toISOString(),
-          status: "pending",
-        },
-        ...prev,
-      ])
+      const optimistic: FlightRequest = {
+        ...fr,
+        id: `fr-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        status: "pending",
+      }
+
+      setFlightRequests((prev) => [optimistic, ...prev])
+
+      void fetch("/api/flight-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(optimistic),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const json = await res.json()
+          if (!json?.data) return
+          setFlightRequests((prev) => prev.map((item) => (item.id === optimistic.id ? json.data : item)))
+        })
+        .catch((error) => {
+          console.error("Failed to persist flight request:", error)
+        })
     },
     []
   )
 
   const updateFlightRequestStatus = useCallback((id: string, status: FlightRequestStatus) => {
     setFlightRequests((prev) => prev.map((fr) => (fr.id === id ? { ...fr, status } : fr)))
+
+    void fetch(`/api/flight-requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    }).catch((error) => {
+      console.error("Failed to persist flight request status:", error)
+    })
   }, [])
 
   const addProposal = useCallback(
@@ -515,16 +597,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       }
       setCustomers((prev) => [newCustomer, ...prev])
+
+      void fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCustomer),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const json = await res.json()
+          if (!json?.data) return
+          setCustomers((prev) => prev.map((item) => (item.id === newCustomer.id ? json.data : item)))
+        })
+        .catch((error) => {
+          console.error("Failed to persist customer:", error)
+        })
       return newCustomer
     },
     []
   )
-
-  const setAvinodeConfig = useCallback((partial: Partial<AvinodeConfig>) => {
-    setAvinodeConfigState((prev) => ({ ...prev, ...partial }))
-  }, [])
-
-  const avinodeConnected = Boolean(avinodeConfig.apiToken && avinodeConfig.authToken)
 
   const addAvinodeActivity = useCallback(
     (item: Omit<AvinodeActivityItem, "id" | "timestamp">) => {
@@ -543,14 +634,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updateFlightRequestAvinode = useCallback(
     (
       id: string,
-      data: Partial<Pick<FlightRequest, "avinodeTripId" | "avinodeTripHref" | "avinodeSearchLink" | "avinodeViewLink" | "avinodeRfqIds" | "avinodeStatus">>
+      data: Partial<Pick<FlightRequest, "avinodeTripId" | "avinodeTripHref" | "avinodeSearchLink" | "avinodeViewLink" | "avinodeRfqIds" | "avinodeQuoteIds" | "avinodeQuoteCount" | "avinodeBestQuoteAmount" | "avinodeBestQuoteCurrency" | "avinodeFirstQuoteAt" | "avinodeLastSyncAt" | "avinodeSlaDueAt" | "avinodeSlaStatus" | "avinodeStatus">>
     ) => {
       setFlightRequests((prev) =>
         prev.map((fr) => (fr.id === id ? { ...fr, ...data } : fr))
       )
+
+      void fetch(`/api/flight-requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).catch((error) => {
+        console.error("Failed to persist Avinode fields:", error)
+      })
     },
     []
   )
+
+  const syncFlightRequestPipeline = useCallback(async (id: string) => {
+    const res = await fetch(`/api/flight-requests/${id}/sync`, { method: "POST" })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+      throw new Error(err.error || "Failed to sync flight request pipeline")
+    }
+
+    const json = await res.json()
+    if (!json?.data) return
+    setFlightRequests((prev) => prev.map((fr) => (fr.id === id ? json.data : fr)))
+  }, [])
 
   return (
     <StoreContext.Provider
@@ -572,12 +683,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         customers,
         addCustomer,
         marketplaceJets: MARKETPLACE_JETS,
-        avinodeConfig,
-        setAvinodeConfig,
         avinodeConnected,
         avinodeActivity,
         addAvinodeActivity,
         updateFlightRequestAvinode,
+        syncFlightRequestPipeline,
         avinodeWebhookEvents,
         setAvinodeWebhookEvents,
       }}

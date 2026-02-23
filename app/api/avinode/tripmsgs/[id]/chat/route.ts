@@ -23,32 +23,25 @@ function getBaseUrl() {
   return process.env.AVINODE_BASE_URL || "https://sandbox.avinode.com/api"
 }
 
-// POST /api/avinode/webhooks - Configure webhook settings
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const body = await req.json()
-    const baseUrl = getBaseUrl()
-    const headers = getHeaders()
 
-    const res = await fetch(`${baseUrl}/webhooks/settings`, {
+    const res = await fetch(`${getBaseUrl()}/tripmsgs/${id}/chat`, {
       method: "POST",
-      headers,
+      headers: getHeaders(),
       body: JSON.stringify(body),
     })
 
+    const data = await res.json().catch(() => ({}))
+
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      return NextResponse.json(
-        { error: "Avinode API error", status: res.status, details: data },
-        { status: res.status }
-      )
+      return NextResponse.json({ error: "Avinode API error", status: res.status, details: data }, { status: res.status })
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json(data)
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to connect to Avinode", message: String(error) },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to connect to Avinode", message: String(error) }, { status: 500 })
   }
 }

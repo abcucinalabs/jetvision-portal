@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 
-// POST /api/avinode/test - Test connection by searching for a known airport
-// Uses POST so credentials go in the body (JWTs can be very long and exceed URL limits in GET)
+// POST /api/avinode/test - Test env-based server connection by searching for a known airport
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    // AVINODE_API_TOKEN = OAuth Secret / API Key (X-Avinode-ApiToken header)
-    // AVINODE_AUTH_TOKEN = Authentication Token / JWT Bearer (Authorization header)
-    const apiToken = body.apiToken || process.env.AVINODE_API_TOKEN || ""
-    const authToken = body.authToken || process.env.AVINODE_AUTH_TOKEN || ""
-    const baseUrl = body.baseUrl || process.env.AVINODE_BASE_URL || "https://sandbox.avinode.com/api"
-    const product = body.product || "JetStream Portal v1.0"
-    const apiVersion = body.apiVersion || "v1.0"
-    const actAsAccount = body.actAsAccount || ""
+    await req.json().catch(() => ({}))
+
+    const apiToken = process.env.AVINODE_API_TOKEN || ""
+    const authToken = process.env.AVINODE_AUTH_TOKEN || ""
+    const baseUrl = process.env.AVINODE_BASE_URL || "https://sandbox.avinode.com/api"
+    const product = process.env.AVINODE_PRODUCT || "JetStream Portal v1.0"
+    const apiVersion = process.env.AVINODE_API_VERSION || "v1.0"
+    const actAsAccount = process.env.AVINODE_ACT_AS_ACCOUNT || ""
 
     if (!apiToken || !authToken) {
       return NextResponse.json(
-        { error: "Missing API credentials. Please enter both API Token and Authentication Token.", connected: false },
+        { error: "Missing Avinode env vars. Set AVINODE_API_TOKEN and AVINODE_AUTH_TOKEN.", connected: false },
         { status: 400 }
       )
     }

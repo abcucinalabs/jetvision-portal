@@ -159,15 +159,9 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             <span className="ml-2 text-xs text-muted-foreground">
               {avinodeConnected
                 ? `${avinodeActivity.length} recent activities`
-                : "Configure API credentials in Avinode Settings"}
+                : "Avinode credentials are not configured in env"}
             </span>
           </div>
-          <button
-            onClick={() => onNavigate("avinode-settings")}
-            className="text-xs font-medium text-primary hover:underline"
-          >
-            {avinodeConnected ? "Settings" : "Connect"}
-          </button>
         </div>
       )}
 
@@ -257,12 +251,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                 Avinode Activity
               </h2>
             </div>
-            <button
-              onClick={() => onNavigate("avinode-settings")}
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              View all
-            </button>
+            <span className="text-xs text-muted-foreground">Latest events</span>
           </div>
           <div className="divide-y divide-border">
             {avinodeActivity.slice(0, 4).map((item) => (
