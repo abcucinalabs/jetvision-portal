@@ -1,4 +1,4 @@
-# JetVision Portal
+# Jetvision Portal
 
 ## Local setup
 
@@ -26,6 +26,8 @@ If your table already exists from an older version, also run:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `AVINODE_BASE_URL` (sandbox by default)
 - `AVINODE_API_TOKEN`
 - `AVINODE_AUTH_TOKEN`

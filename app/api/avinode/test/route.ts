@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { buildAuthorizationHeader } from "@/lib/avinode-auth"
 
 // POST /api/avinode/test - Test env-based server connection by searching for a known airport
 export async function POST(req: NextRequest) {
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Avinode-ApiToken": apiToken,
-      Authorization: `Bearer ${authToken}`,
+      Authorization: buildAuthorizationHeader(authToken),
       "X-Avinode-SentTimestamp": new Date().toISOString(),
       "X-Avinode-ApiVersion": apiVersion,
       "X-Avinode-Product": product,

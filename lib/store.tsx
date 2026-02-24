@@ -28,7 +28,7 @@ export interface Notification {
   read: boolean
 }
 
-export type FlightRequestStatus = "pending" | "proposal_sent" | "accepted" | "declined"
+export type FlightRequestStatus = "pending" | "proposal_sent" | "accepted" | "declined" | "cancelled"
 
 export interface FlightRequest {
   id: string

@@ -61,7 +61,7 @@ export function ProposalsView() {
                 <div className="rounded-xl border border-border bg-card p-4">
                   <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                     <Percent className="h-3.5 w-3.5" />
-                    JetStream Costs
+                    Jetvision Costs
                   </div>
                   <div className="mt-1 text-xl font-bold text-primary">
                     ${totalJetstreamCost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -123,7 +123,7 @@ export function ProposalsView() {
                         ISO Commission: {p.isoCommissionPct}% (${((p.price * p.isoCommissionPct) / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})
                       </span>
                       <span className="text-primary">
-                        JetStream Costs: {p.jetstreamCostPct}% (${((p.price * p.jetstreamCostPct) / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})
+                        Jetvision Costs: {p.jetstreamCostPct}% (${((p.price * p.jetstreamCostPct) / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})
                       </span>
                     </div>
                   )}

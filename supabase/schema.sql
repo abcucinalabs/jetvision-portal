@@ -21,7 +21,7 @@ create table if not exists public.flight_requests (
   return_date date,
   passengers int not null check (passengers > 0),
   special_requests text,
-  status text not null default 'pending' check (status in ('pending', 'proposal_sent', 'accepted', 'declined')),
+  status text not null default 'pending' check (status in ('pending', 'proposal_sent', 'accepted', 'declined', 'cancelled')),
   created_at timestamptz not null default now(),
   avinode_trip_id text,
   avinode_trip_href text,

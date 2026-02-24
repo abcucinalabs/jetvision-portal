@@ -18,6 +18,8 @@
  * - Trip cancellation (PUT /trips/{id}/cancel)
  */
 
+import { buildAuthorizationHeader } from "@/lib/avinode-auth"
+
 // ── Avinode Configuration ──────────────────────────────────────────
 
 export interface AvinodeConfig {
@@ -340,7 +342,7 @@ export function buildHeaders(config: AvinodeConfig): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Avinode-ApiToken": config.apiToken,
-    Authorization: `Bearer ${config.authToken}`,
+    Authorization: buildAuthorizationHeader(config.authToken),
     "X-Avinode-SentTimestamp": new Date().toISOString(),
     "X-Avinode-ApiVersion": config.apiVersion,
     "X-Avinode-Product": config.product,

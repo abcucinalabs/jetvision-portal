@@ -291,7 +291,7 @@ export function SendProposalView() {
                 </label>
                 <label className="block space-y-1.5">
                   <span className="text-xs font-medium text-muted-foreground">
-                    JetStream Costs (%)
+                    Jetvision Costs (%)
                   </span>
                   <div className="flex items-center gap-3">
                     <input
@@ -329,7 +329,7 @@ export function SendProposalView() {
                     </div>
                     <div>
                       <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        JetStream Costs
+                        Jetvision Costs
                       </div>
                       <div className="mt-0.5 text-sm font-bold text-primary">
                         ${(parseFloat(price) * jetstreamCostPct / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}

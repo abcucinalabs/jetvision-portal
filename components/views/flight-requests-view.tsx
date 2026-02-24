@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { useStore, type Customer, type FlightRequest } from "@/lib/store"
 import { createTrip, searchAirports } from "@/lib/avinode-client"
+import { searchAirportDirectory } from "@/lib/airport-directory"
 import { formatDistanceToNow } from "date-fns"
 import {
   PlaneTakeoff,
@@ -29,6 +30,8 @@ export function FlightRequestsView() {
     currentUser,
     flightRequests,
     addFlightRequest,
+    addNotification,
+    updateFlightRequestStatus,
     avinodeConnected,
     updateFlightRequestAvinode,
     addAvinodeActivity,
@@ -39,6 +42,22 @@ export function FlightRequestsView() {
   const [syncingPipeline, setSyncingPipeline] = useState<string | null>(null)
   const [copiedSearchFor, setCopiedSearchFor] = useState<string | null>(null)
   const [avinodeError, setAvinodeError] = useState<string | null>(null)
+  const [layoutMode, setLayoutMode] = useState<"cards" | "table">("cards")
+  const [sortConfig, setSortConfig] = useState<{
+    key: "clientName" | "isoName" | "departure" | "arrival" | "departureDate" | "passengers" | "status"
+    direction: "asc" | "desc"
+  }>({
+    key: "departureDate",
+    direction: "asc",
+  })
+  const [tableFilters, setTableFilters] = useState({
+    clientName: "",
+    isoName: "",
+    departure: "",
+    arrival: "",
+    departureDate: "",
+    status: "",
+  })
 
   if (!currentUser) return null
 
@@ -47,6 +66,48 @@ export function FlightRequestsView() {
   const requests = isManager
     ? flightRequests
     : flightRequests.filter((fr) => fr.isoId === currentUser.id)
+
+  const tableRequests = useMemo(() => {
+    const normalized = {
+      clientName: tableFilters.clientName.trim().toLowerCase(),
+      isoName: tableFilters.isoName.trim().toLowerCase(),
+      departure: tableFilters.departure.trim().toLowerCase(),
+      arrival: tableFilters.arrival.trim().toLowerCase(),
+      departureDate: tableFilters.departureDate.trim(),
+      status: tableFilters.status.trim().toLowerCase(),
+    }
+
+    const filtered = requests.filter((fr) => {
+      if (normalized.clientName && !fr.clientName.toLowerCase().includes(normalized.clientName)) return false
+      if (normalized.isoName && !fr.isoName.toLowerCase().includes(normalized.isoName)) return false
+      if (normalized.departure && !fr.departure.toLowerCase().includes(normalized.departure)) return false
+      if (normalized.arrival && !fr.arrival.toLowerCase().includes(normalized.arrival)) return false
+      if (normalized.departureDate && !fr.departureDate.includes(normalized.departureDate)) return false
+      if (normalized.status && fr.status.toLowerCase() !== normalized.status) return false
+      return true
+    })
+
+    return [...filtered].sort((a, b) => {
+      const dir = sortConfig.direction === "asc" ? 1 : -1
+      const valueA = a[sortConfig.key]
+      const valueB = b[sortConfig.key]
+
+      if (typeof valueA === "number" && typeof valueB === "number") {
+        return (valueA - valueB) * dir
+      }
+
+      return String(valueA).localeCompare(String(valueB)) * dir
+    })
+  }, [requests, sortConfig, tableFilters])
+
+  const handleSort = (key: "clientName" | "isoName" | "departure" | "arrival" | "departureDate" | "passengers" | "status") => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === "asc" ? "desc" : "asc" }
+      }
+      return { key, direction: "asc" }
+    })
+  }
 
   const handleSendToAvinode = async (fr: FlightRequest) => {
     setSendingToAvinode(fr.id)
@@ -145,6 +206,30 @@ export function FlightRequestsView() {
     setTimeout(() => setCopiedSearchFor(null), 1500)
   }
 
+  const handleCancelRequest = (fr: FlightRequest) => {
+    const isCancelable = !["accepted", "declined", "cancelled"].includes(fr.status)
+    if (!isCancelable) return
+
+    const confirmed = window.confirm(
+      `Cancel this request for ${fr.clientName}? This will notify managers.`
+    )
+    if (!confirmed) return
+
+    updateFlightRequestStatus(fr.id, "cancelled")
+
+    if (fr.avinodeTripId) {
+      updateFlightRequestAvinode(fr.id, { avinodeStatus: "cancelled" })
+    }
+
+    addNotification({
+      title: "Flight Request Cancelled",
+      body: `${currentUser.name} cancelled the flight request for ${fr.clientName} (${fr.departure} -> ${fr.arrival} on ${fr.departureDate}).`,
+      fromUserId: currentUser.id,
+      fromUserName: currentUser.name,
+      toRole: "manager",
+    })
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -156,15 +241,41 @@ export function FlightRequestsView() {
               : "Submit and track flight requests for your clients."}
           </p>
         </div>
-        {!isManager && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" />
-            New Request
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-lg border border-border p-1">
+            <button
+              type="button"
+              onClick={() => setLayoutMode("cards")}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                layoutMode === "cards"
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Card layout
+            </button>
+            <button
+              type="button"
+              onClick={() => setLayoutMode("table")}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                layoutMode === "table"
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Table layout
+            </button>
+          </div>
+          {!isManager && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              New Request
+            </button>
+          )}
+        </div>
       </div>
 
       {avinodeError && (
@@ -210,7 +321,7 @@ export function FlightRequestsView() {
             </button>
           )}
         </div>
-      ) : (
+      ) : layoutMode === "cards" ? (
         <div className="grid gap-4">
           {requests.map((fr) => (
             <div
@@ -291,6 +402,17 @@ export function FlightRequestsView() {
                       <span className="font-medium text-card-foreground">ISO:</span>{" "}
                       {fr.isoName}
                     </div>
+                  )}
+
+                  {!isManager && !["accepted", "declined", "cancelled"].includes(fr.status) && (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelRequest(fr)}
+                      className="flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                      Cancel Request
+                    </button>
                   )}
 
                   {/* Avinode Actions for Manager */}
@@ -376,6 +498,138 @@ export function FlightRequestsView() {
             </div>
           ))}
         </div>
+      ) : (
+        <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+            <input
+              value={tableFilters.clientName}
+              onChange={(e) => setTableFilters((prev) => ({ ...prev, clientName: e.target.value }))}
+              placeholder="Filter client"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {isManager && (
+              <input
+                value={tableFilters.isoName}
+                onChange={(e) => setTableFilters((prev) => ({ ...prev, isoName: e.target.value }))}
+                placeholder="Filter ISO"
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            )}
+            <input
+              value={tableFilters.departure}
+              onChange={(e) => setTableFilters((prev) => ({ ...prev, departure: e.target.value }))}
+              placeholder="Filter departure"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <input
+              value={tableFilters.arrival}
+              onChange={(e) => setTableFilters((prev) => ({ ...prev, arrival: e.target.value }))}
+              placeholder="Filter arrival"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <input
+              value={tableFilters.departureDate}
+              onChange={(e) => setTableFilters((prev) => ({ ...prev, departureDate: e.target.value }))}
+              placeholder="Filter date (YYYY-MM-DD)"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <select
+              value={tableFilters.status}
+              onChange={(e) => setTableFilters((prev) => ({ ...prev, status: e.target.value }))}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="proposal_sent">Proposal Sent</option>
+              <option value="accepted">Accepted</option>
+              <option value="declined">Declined</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[880px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-3 py-2 text-left">
+                    <button type="button" onClick={() => handleSort("clientName")} className="font-semibold text-card-foreground hover:underline">
+                      Client {sortConfig.key === "clientName" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                    </button>
+                  </th>
+                  {isManager && (
+                    <th className="px-3 py-2 text-left">
+                      <button type="button" onClick={() => handleSort("isoName")} className="font-semibold text-card-foreground hover:underline">
+                        ISO {sortConfig.key === "isoName" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                      </button>
+                    </th>
+                  )}
+                  <th className="px-3 py-2 text-left">
+                    <button type="button" onClick={() => handleSort("departure")} className="font-semibold text-card-foreground hover:underline">
+                      Departure {sortConfig.key === "departure" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-left">
+                    <button type="button" onClick={() => handleSort("arrival")} className="font-semibold text-card-foreground hover:underline">
+                      Arrival {sortConfig.key === "arrival" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-left">
+                    <button type="button" onClick={() => handleSort("departureDate")} className="font-semibold text-card-foreground hover:underline">
+                      Date {sortConfig.key === "departureDate" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-left">
+                    <button type="button" onClick={() => handleSort("passengers")} className="font-semibold text-card-foreground hover:underline">
+                      Pax {sortConfig.key === "passengers" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-left">
+                    <button type="button" onClick={() => handleSort("status")} className="font-semibold text-card-foreground hover:underline">
+                      Status {sortConfig.key === "status" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                    </button>
+                  </th>
+                  {!isManager && <th className="px-3 py-2 text-left font-semibold text-card-foreground">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {tableRequests.length === 0 ? (
+                  <tr>
+                    <td colSpan={isManager ? 7 : 8} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                      No matching flight requests for current filters.
+                    </td>
+                  </tr>
+                ) : (
+                  tableRequests.map((fr) => (
+                    <tr key={fr.id} className="border-b border-border/60 last:border-b-0">
+                      <td className="px-3 py-2 text-card-foreground">{fr.clientName}</td>
+                      {isManager && <td className="px-3 py-2 text-muted-foreground">{fr.isoName}</td>}
+                      <td className="px-3 py-2 text-muted-foreground">{fr.departure}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{fr.arrival}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{fr.departureDate}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{fr.passengers}</td>
+                      <td className="px-3 py-2"><StatusBadge status={fr.status} /></td>
+                      {!isManager && (
+                        <td className="px-3 py-2">
+                          {!["accepted", "declined", "cancelled"].includes(fr.status) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleCancelRequest(fr)}
+                              className="rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
+                            >
+                              Cancel
+                            </button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -422,6 +676,7 @@ function StatusBadge({ status }: { status: string }) {
     proposal_sent: { bg: "bg-primary/10", text: "text-primary", label: "Proposal Sent" },
     accepted: { bg: "bg-success/10", text: "text-success", label: "Accepted" },
     declined: { bg: "bg-destructive/10", text: "text-destructive", label: "Declined" },
+    cancelled: { bg: "bg-destructive/10", text: "text-destructive", label: "Cancelled" },
   }
   const c = config[status] || config.pending
   return (
@@ -463,6 +718,50 @@ function manualIcaoOption(input: string): AirportSuggestion | null {
     city: "",
     country: { code: "", name: "" },
   }
+}
+
+function mapDirectoryAirport(airport: ReturnType<typeof searchAirportDirectory>[number]): AirportSuggestion {
+  return {
+    id: `dir-${airport.icao}`,
+    name: airport.name,
+    icao: airport.icao,
+    iata: airport.iata,
+    city: airport.city,
+    country: { code: airport.countryCode, name: airport.countryName },
+  }
+}
+
+function mergeAirportOptions(
+  remote: AirportSuggestion[],
+  local: AirportSuggestion[],
+  fallback: AirportSuggestion | null
+) {
+  const merged = [...remote, ...local, ...(fallback ? [fallback] : [])]
+  const seen = new Set<string>()
+  const unique: AirportSuggestion[] = []
+
+  for (const airport of merged) {
+    const key = airport.icao || airport.id
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    unique.push(airport)
+    if (unique.length >= 20) break
+  }
+
+  return unique
+}
+
+function formatPhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 11)
+  if (!digits) return ""
+
+  const hasCountryCode = digits.length > 10 && digits.startsWith("1")
+  const local = hasCountryCode ? digits.slice(1) : digits.slice(0, 10)
+  const prefix = hasCountryCode ? "+1 " : ""
+
+  if (local.length <= 3) return `${prefix}(${local}`
+  if (local.length <= 6) return `${prefix}(${local.slice(0, 3)}) ${local.slice(3)}`
+  return `${prefix}(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`
 }
 
 function NewFlightRequestForm({
@@ -529,22 +828,22 @@ function NewFlightRequestForm({
   }, [])
 
   useEffect(() => {
-    if (!avinodeConnected || !form.departure || form.departure.length < 3) {
+    if (!form.departure || form.departure.length < 3) {
       setDepartureOptions([])
       return
     }
 
     const timer = setTimeout(async () => {
       setSearchingDeparture(true)
+      const fallback = manualIcaoOption(form.departure)
+      const localMatches = searchAirportDirectory(form.departure, 20).map(mapDirectoryAirport)
       try {
-        const airports = await searchAirports(form.departure)
-        const fallback = manualIcaoOption(form.departure)
-        setDepartureOptions(airports.length > 0 ? airports.slice(0, 20) : fallback ? [fallback] : [])
+        const remote = avinodeConnected ? await searchAirports(form.departure) : []
+        setDepartureOptions(mergeAirportOptions(remote, localMatches, fallback))
         setAirportLookupError(null)
       } catch (error) {
-        const fallback = manualIcaoOption(form.departure)
-        setDepartureOptions(fallback ? [fallback] : [])
-        setAirportLookupError(error instanceof Error ? error.message : "Airport search failed")
+        setDepartureOptions(mergeAirportOptions([], localMatches, fallback))
+        setAirportLookupError("Live lookup unavailable. Showing local airport directory.")
       } finally {
         setSearchingDeparture(false)
       }
@@ -554,22 +853,22 @@ function NewFlightRequestForm({
   }, [avinodeConnected, form.departure])
 
   useEffect(() => {
-    if (!avinodeConnected || !form.arrival || form.arrival.length < 3) {
+    if (!form.arrival || form.arrival.length < 3) {
       setArrivalOptions([])
       return
     }
 
     const timer = setTimeout(async () => {
       setSearchingArrival(true)
+      const fallback = manualIcaoOption(form.arrival)
+      const localMatches = searchAirportDirectory(form.arrival, 20).map(mapDirectoryAirport)
       try {
-        const airports = await searchAirports(form.arrival)
-        const fallback = manualIcaoOption(form.arrival)
-        setArrivalOptions(airports.length > 0 ? airports.slice(0, 20) : fallback ? [fallback] : [])
+        const remote = avinodeConnected ? await searchAirports(form.arrival) : []
+        setArrivalOptions(mergeAirportOptions(remote, localMatches, fallback))
         setAirportLookupError(null)
       } catch (error) {
-        const fallback = manualIcaoOption(form.arrival)
-        setArrivalOptions(fallback ? [fallback] : [])
-        setAirportLookupError(error instanceof Error ? error.message : "Airport search failed")
+        setArrivalOptions(mergeAirportOptions([], localMatches, fallback))
+        setAirportLookupError("Live lookup unavailable. Showing local airport directory.")
       } finally {
         setSearchingArrival(false)
       }
@@ -590,7 +889,7 @@ function NewFlightRequestForm({
       ...prev,
       clientName: customer.name,
       clientEmail: customer.email,
-      clientPhone: customer.phone,
+      clientPhone: formatPhoneNumber(customer.phone),
     }))
     setCustomerSearch("")
     setShowDropdown(false)
@@ -867,9 +1166,10 @@ function NewFlightRequestForm({
                 <span className="text-xs font-medium text-muted-foreground">Client Phone</span>
                 <input
                   value={form.clientPhone}
-                  onChange={(e) => setForm({ ...form, clientPhone: e.target.value })}
+                  onChange={(e) => setForm({ ...form, clientPhone: formatPhoneNumber(e.target.value) })}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   placeholder="+1 (555) 000-0000"
+                  inputMode="tel"
                 />
               </label>
             </div>
@@ -958,9 +1258,7 @@ function NewFlightRequestForm({
         </div>
 
         {airportLookupError && (
-          <p className="text-xs text-muted-foreground">
-            Airport lookup unavailable right now. You can still enter ICAO codes manually.
-          </p>
+          <p className="text-xs text-muted-foreground">{airportLookupError}</p>
         )}
 
         <div className="flex items-center gap-2">

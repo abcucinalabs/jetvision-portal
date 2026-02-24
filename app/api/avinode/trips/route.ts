@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { buildAuthorizationHeader } from "@/lib/avinode-auth"
 
 function getHeaders() {
   // AVINODE_API_TOKEN = OAuth Secret / API Key from Avinode developer portal (sent as X-Avinode-ApiToken)
@@ -12,7 +13,7 @@ function getHeaders() {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Avinode-ApiToken": apiToken,
-    Authorization: `Bearer ${authToken}`,
+    Authorization: buildAuthorizationHeader(authToken),
     "X-Avinode-SentTimestamp": new Date().toISOString(),
     "X-Avinode-ApiVersion": apiVersion,
     "X-Avinode-Product": product,

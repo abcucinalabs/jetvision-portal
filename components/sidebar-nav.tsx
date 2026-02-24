@@ -1,8 +1,9 @@
 "use client"
 
 import { useStore } from "@/lib/store"
+import Image from "next/image"
+import jetvisionLogo from "@/IMG_6289.png"
 import {
-  Plane,
   LayoutDashboard,
   Bell,
   FileText,
@@ -57,18 +58,15 @@ export function SidebarNav({ activeView, onNavigate }: SidebarNavProps) {
   const navItems = currentUser.role === "manager" ? MANAGER_NAV : ISO_NAV
 
   const sidebarContent = (
-    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+    <div className="flex h-full flex-col bg-white text-black">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-          <Plane className="h-5 w-5 text-sidebar-primary-foreground" />
-        </div>
-        <div>
-          <div className="text-sm font-bold tracking-tight text-sidebar-foreground">
-            JetStream
-          </div>
-          <div className="text-[11px] text-sidebar-foreground/50">Aviation Portal</div>
-        </div>
+      <div className="flex items-center justify-center border-b border-gray-200 px-5 py-4">
+        <Image
+          src={jetvisionLogo}
+          alt="Jetvision"
+          className="h-auto w-[132px]"
+          priority
+        />
       </div>
 
       {/* Nav items */}
@@ -84,8 +82,8 @@ export function SidebarNav({ activeView, onNavigate }: SidebarNavProps) {
               }}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  ? "bg-gray-100 text-black"
+                  : "text-gray-700 hover:bg-gray-100 hover:text-black"
               }`}
             >
               <item.icon className="h-[18px] w-[18px]" />
@@ -101,22 +99,22 @@ export function SidebarNav({ activeView, onNavigate }: SidebarNavProps) {
       </nav>
 
       {/* User section */}
-      <div className="border-t border-sidebar-border p-4">
+      <div className="border-t border-gray-200 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-bold text-sidebar-accent-foreground">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-black">
             {currentUser.name.split(" ").map((n) => n[0]).join("")}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="truncate text-sm font-medium text-sidebar-foreground">
+            <div className="truncate text-sm font-medium text-black">
               {currentUser.name}
             </div>
-            <div className="truncate text-[11px] text-sidebar-foreground/50">
+            <div className="truncate text-[11px] text-gray-500">
               {currentUser.role === "manager" ? "Manager" : "ISO"}
             </div>
           </div>
           <button
             onClick={logout}
-            className="rounded-lg p-2 text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
             aria-label="Sign out"
           >
             <LogOut className="h-4 w-4" />
@@ -148,7 +146,7 @@ export function SidebarNav({ activeView, onNavigate }: SidebarNavProps) {
             {sidebarContent}
             <button
               onClick={() => setMobileOpen(false)}
-              className="absolute right-3 top-5 rounded-lg p-1 text-sidebar-foreground/60 hover:text-sidebar-foreground"
+              className="absolute right-3 top-5 rounded-lg p-1 text-gray-500 hover:text-black"
               aria-label="Close menu"
             >
               <X className="h-5 w-5" />

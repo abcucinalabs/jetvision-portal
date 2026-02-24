@@ -14,7 +14,7 @@ type FlightRequestRow = {
   return_date: string | null
   passengers: number
   special_requests: string | null
-  status: "pending" | "proposal_sent" | "accepted" | "declined"
+  status: "pending" | "proposal_sent" | "accepted" | "declined" | "cancelled"
   created_at: string
   avinode_trip_id: string | null
   avinode_trip_href: string | null

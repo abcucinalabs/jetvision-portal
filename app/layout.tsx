@@ -15,12 +15,12 @@ const spaceMono = Space_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'JetStream Portal | Private Aviation Management',
-  description: 'Employee portal for JetStream private jet booking — manage flight requests, proposals, and operations.',
+  title: 'Jetvision Portal | Private Aviation Management',
+  description: 'Employee portal for Jetvision private jet booking — manage flight requests, proposals, and operations.',
 }
 
 export const viewport: Viewport = {
-  themeColor: '#122b4d',
+  themeColor: '#171717',
   width: 'device-width',
   initialScale: 1,
   userScalable: false,

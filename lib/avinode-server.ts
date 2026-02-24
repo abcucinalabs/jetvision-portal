@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabase-admin"
+import { buildAuthorizationHeader } from "@/lib/avinode-auth"
 
 export interface AvinodeQuoteSummary {
   id: string
@@ -11,7 +12,7 @@ export interface AvinodeQuoteSummary {
 function getHeaders() {
   const apiToken = process.env.AVINODE_API_TOKEN || ""
   const authToken = process.env.AVINODE_AUTH_TOKEN || ""
-  const product = process.env.AVINODE_PRODUCT || "JetStream Portal v1.0"
+  const product = process.env.AVINODE_PRODUCT || "Jetvision Portal v1.0"
   const apiVersion = process.env.AVINODE_API_VERSION || "v1.0"
   const actAsAccount = process.env.AVINODE_ACT_AS_ACCOUNT || ""
 
@@ -22,7 +23,7 @@ function getHeaders() {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Avinode-ApiToken": apiToken,
-    Authorization: `Bearer ${authToken}`,
+    Authorization: buildAuthorizationHeader(authToken),
     "X-Avinode-SentTimestamp": new Date().toISOString(),
     "X-Avinode-ApiVersion": apiVersion,
     "X-Avinode-Product": product,
