@@ -52,11 +52,14 @@ async function fetchAvinode(path: string) {
   }
 
   if (!res.ok) {
+    const firstError = (json?.meta as { errors?: { message?: string; title?: string; code?: string }[] } | undefined)?.errors?.[0]
     const errorMsg =
-      (json?.meta as { errors?: { message?: string }[] } | undefined)?.errors?.[0]?.message ||
+      firstError?.title ||
+      firstError?.message ||
       (json?.error as string | undefined) ||
       `Avinode request failed (${res.status})`
-    throw new Error(errorMsg)
+    const codeSuffix = firstError?.code ? ` [${firstError.code}]` : ""
+    throw new Error(`${errorMsg}${codeSuffix} (${res.status}) on ${path}`)
   }
 
   return json
