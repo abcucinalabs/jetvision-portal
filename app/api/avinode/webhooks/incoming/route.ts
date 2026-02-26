@@ -8,6 +8,11 @@ type IncomingEvent = {
   tripId?: string
 }
 
+const RFQ_EVENT_TYPES = new Set([
+  "TripRequestSellerResponse",
+  "TripRequestSellerResponseMine",
+])
+
 function getEventType(req: NextRequest, body: Record<string, unknown>) {
   const fromHeader =
     req.headers.get("x-avinode-eventtype") ||
@@ -41,14 +46,19 @@ export async function POST(req: NextRequest) {
     const eventType = getEventType(req, body)
     const events = normalizeEvents(body)
 
-    if (eventType !== "TripRequestSellerResponse") {
+    if (!RFQ_EVENT_TYPES.has(eventType)) {
       return NextResponse.json({ ok: true, ignored: true, eventType })
     }
 
     const syncedFlightRequestIds = new Set<string>()
 
     for (const event of events) {
-      const rfqId = event.type === "rfqs" && event.id ? String(event.id) : undefined
+      const rfqIdFromId = event.type === "rfqs" && event.id ? String(event.id) : undefined
+      const rfqIdFromHref =
+        event.href && typeof event.href === "string"
+          ? (event.href.match(/\/rfqs\/([^/?]+)/)?.[1] || undefined)
+          : undefined
+      const rfqId = rfqIdFromId || rfqIdFromHref
       const tripId = event.tripId ? String(event.tripId) : undefined
 
       const flightRequestId = await upsertRfqFromWebhook({ tripId, rfqId })

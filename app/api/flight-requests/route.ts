@@ -29,8 +29,6 @@ type FlightRequestRow = {
   avinode_best_quote_currency: string | null
   avinode_first_quote_at: string | null
   avinode_last_sync_at: string | null
-  avinode_sla_due_at: string | null
-  avinode_sla_status: "on_track" | "at_risk" | "overdue" | "met" | null
   avinode_status: "not_sent" | "sent_to_avinode" | "rfq_sent" | "quotes_received" | "booked" | "cancelled" | null
 }
 
@@ -61,8 +59,6 @@ function toFlightRequest(row: FlightRequestRow) {
     avinodeBestQuoteCurrency: row.avinode_best_quote_currency || undefined,
     avinodeFirstQuoteAt: row.avinode_first_quote_at || undefined,
     avinodeLastSyncAt: row.avinode_last_sync_at || undefined,
-    avinodeSlaDueAt: row.avinode_sla_due_at || undefined,
-    avinodeSlaStatus: row.avinode_sla_status || undefined,
     avinodeStatus: row.avinode_status || undefined,
   }
 }
@@ -114,8 +110,6 @@ export async function POST(req: NextRequest) {
       avinode_best_quote_currency: body.avinodeBestQuoteCurrency || null,
       avinode_first_quote_at: body.avinodeFirstQuoteAt || null,
       avinode_last_sync_at: body.avinodeLastSyncAt || null,
-      avinode_sla_due_at: body.avinodeSlaDueAt || null,
-      avinode_sla_status: body.avinodeSlaStatus || null,
       avinode_status: body.avinodeStatus || null,
     }
 

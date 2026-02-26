@@ -230,6 +230,9 @@ export function FlightRequestsView() {
     })
   }
 
+  const getDisplayedRfqCount = (fr: FlightRequest) =>
+    Math.max(fr.avinodeRfqIds?.length || 0, fr.avinodeQuoteIds?.length || 0)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -366,7 +369,6 @@ export function FlightRequestsView() {
                       <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">
                         Avinode: {fr.avinodeTripId}
                       </span>
-                      <SlaBadge status={fr.avinodeSlaStatus} />
                       {typeof fr.avinodeQuoteCount === "number" && (
                         <span className="rounded bg-accent/10 px-1.5 py-0.5 font-medium text-accent">
                           Quotes: {fr.avinodeQuoteCount}
@@ -378,15 +380,12 @@ export function FlightRequestsView() {
                   {fr.avinodeTripId && (
                     <div className="rounded-lg border border-border bg-muted/20 p-2.5 text-xs">
                       <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
-                        <span>RFQs: {fr.avinodeRfqIds?.length || 0}</span>
+                        <span>RFQs: {getDisplayedRfqCount(fr)}</span>
                         <span>Quotes: {fr.avinodeQuoteCount || 0}</span>
                         {fr.avinodeBestQuoteAmount && (
                           <span className="font-medium text-card-foreground">
                             Best: {fr.avinodeBestQuoteCurrency || "USD"} {fr.avinodeBestQuoteAmount.toLocaleString()}
                           </span>
-                        )}
-                        {fr.avinodeSlaDueAt && (
-                          <span>SLA due {formatDistanceToNow(new Date(fr.avinodeSlaDueAt), { addSuffix: true })}</span>
                         )}
                         {fr.avinodeLastSyncAt && (
                           <span>Synced {formatDistanceToNow(new Date(fr.avinodeLastSyncAt), { addSuffix: true })}</span>
@@ -635,23 +634,6 @@ export function FlightRequestsView() {
   )
 }
 
-function SlaBadge({ status }: { status?: "on_track" | "at_risk" | "overdue" | "met" }) {
-  if (!status) return null
-  const config: Record<string, { bg: string; text: string; label: string }> = {
-    on_track: { bg: "bg-primary/10", text: "text-primary", label: "SLA On Track" },
-    at_risk: { bg: "bg-accent/10", text: "text-accent", label: "SLA At Risk" },
-    overdue: { bg: "bg-destructive/10", text: "text-destructive", label: "SLA Overdue" },
-    met: { bg: "bg-green-500/10", text: "text-green-700", label: "SLA Met" },
-  }
-
-  const c = config[status]
-  return (
-    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${c.bg} ${c.text}`}>
-      {c.label}
-    </span>
-  )
-}
-
 function AvinodeStatusBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
     not_sent: { bg: "bg-muted", text: "text-muted-foreground", label: "Not in Avinode" },
@@ -686,7 +668,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-interface FormData {
+export interface FormData {
   clientName: string
   clientEmail: string
   clientPhone: string
@@ -764,7 +746,7 @@ function formatPhoneNumber(value: string) {
   return `${prefix}(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`
 }
 
-function NewFlightRequestForm({
+export function NewFlightRequestForm({
   onClose,
   onSubmit,
 }: {

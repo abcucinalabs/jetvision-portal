@@ -14,6 +14,8 @@ import { MarketplaceView } from "@/components/views/marketplace-view"
 import { SendNotificationView } from "@/components/views/send-notification-view"
 import { SendProposalView } from "@/components/views/send-proposal-view"
 import { RFQOperationsView } from "@/components/views/rfq-operations-view"
+import { WorkflowLogicView } from "@/components/views/workflow-logic-view"
+import { RequestsNewView } from "@/components/views/requests-new-view"
 
 type AuthStatus = "loading" | "signed_out" | "signed_in"
 
@@ -73,8 +75,10 @@ export function PortalShell() {
           {activeView === "dashboard" && (
             <DashboardView onNavigate={setActiveView} />
           )}
+          {activeView === "requests-new" && <RequestsNewView />}
           {activeView === "flight-requests" && <FlightRequestsView />}
           {activeView === "rfq-operations" && <RFQOperationsView />}
+          {activeView === "workflow-logic" && <WorkflowLogicView />}
           {activeView === "notifications" && <NotificationsView />}
           {activeView === "proposals" && <ProposalsView />}
           {activeView === "marketplace" && <MarketplaceView />}

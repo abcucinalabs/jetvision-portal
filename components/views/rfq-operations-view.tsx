@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useStore, type FlightRequest } from "@/lib/store"
-import { chatTripRequest, declineTripRequest, getTripMessage, submitTripQuote } from "@/lib/avinode-client"
+import { chatTripRequest, declineTripRequest, getRfq, getTripMessage, submitTripQuote } from "@/lib/avinode-client"
 import { Calendar, ChevronRight, ExternalLink, Globe, MapPin, MessageSquare, PlaneTakeoff, Send, Users } from "lucide-react"
 
 export function RFQOperationsView() {
@@ -15,6 +15,7 @@ export function RFQOperationsView() {
   const [chatText, setChatText] = useState("")
   const [declineReason, setDeclineReason] = useState("Aircraft unavailable")
   const [apiError, setApiError] = useState<string | null>(null)
+  const [contextHint, setContextHint] = useState<string | null>(null)
   const [loadingAction, setLoadingAction] = useState<"fetch" | "quote" | "decline" | "chat" | null>(null)
   const [responsePayload, setResponsePayload] = useState<Record<string, unknown> | null>(null)
 
@@ -25,10 +26,54 @@ export function RFQOperationsView() {
     [flightRequests]
   )
 
-  const handleSelectRequest = (fr: FlightRequest) => {
+  const handleSelectRequest = async (fr: FlightRequest) => {
     setSelectedRequest(fr)
+    setRequestId("")
+    setLiftId("")
     setResponsePayload(null)
     setApiError(null)
+    setContextHint(null)
+
+    const rfqId = fr.avinodeRfqIds?.[0]
+    if (!rfqId) {
+      setContextHint("No RFQ ID found on this request yet. Click Sync Pipeline and try again.")
+      return
+    }
+
+    setLoadingAction("fetch")
+    try {
+      const rfq = (await getRfq(rfqId)) as unknown as { data?: Record<string, unknown> }
+      const links = (rfq?.data?.links as Record<string, unknown> | undefined) || {}
+      const tripmsgs = (links.tripmsgs as { id?: string }[] | undefined) || []
+      const tripmsgId = tripmsgs[0]?.id ? String(tripmsgs[0].id) : ""
+
+      if (!tripmsgId) {
+        setContextHint(`RFQ ${rfqId} has no trip message link yet. Enter Request ID manually.`)
+        return
+      }
+
+      setRequestId(tripmsgId)
+      const tripMessage = (await getTripMessage(tripmsgId)) as { data?: Record<string, unknown> } & Record<string, unknown>
+      setResponsePayload(tripMessage)
+
+      const msgData = (tripMessage?.data as Record<string, unknown> | undefined) || tripMessage
+      const lifts = (msgData.lift as Record<string, unknown>[] | undefined) || []
+      const preferredLift =
+        lifts.find((lift) => Number(lift.sourcingStatus || 0) === 1) ||
+        lifts.find((lift) => Number(lift.sourcingStatus || 0) === 2) ||
+        lifts[0]
+      if (preferredLift?.id) {
+        setLiftId(String(preferredLift.id))
+      }
+
+      setContextHint(`Auto-loaded Request ID from RFQ ${rfqId}.`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to auto-load request context"
+      setApiError(message)
+      setContextHint(`Could not auto-load context from RFQ ${rfqId}. Enter Request ID manually.`)
+    } finally {
+      setLoadingAction(null)
+    }
   }
 
   const runAction = async (action: "fetch" | "quote" | "decline" | "chat", fn: () => Promise<unknown>) => {
@@ -147,7 +192,7 @@ export function RFQOperationsView() {
               {avinodeRequests.map((fr) => (
                 <button
                   key={fr.id}
-                  onClick={() => handleSelectRequest(fr)}
+                  onClick={() => void handleSelectRequest(fr)}
                   className="group flex items-center gap-4 rounded-xl border border-border bg-card p-4 text-left transition-all hover:border-accent/40 hover:shadow-sm"
                 >
                   <div className="flex-1 space-y-2">
@@ -258,6 +303,12 @@ export function RFQOperationsView() {
                 {loadingAction === "fetch" ? "Loading..." : "GET /tripmsgs/{id}"}
               </button>
             </div>
+
+            {contextHint && (
+              <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                {contextHint}
+              </div>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-3">
               <label className="space-y-1.5">

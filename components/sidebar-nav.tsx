@@ -12,6 +12,8 @@ import {
   LogOut,
   PlaneTakeoff,
   MessageSquare,
+  GitBranch,
+  ListChecks,
   Menu,
   X,
 } from "lucide-react"
@@ -21,9 +23,11 @@ export type PortalView =
   | "dashboard"
   | "flight-requests"
   | "rfq-operations"
+  | "requests-new"
   | "notifications"
   | "proposals"
   | "marketplace"
+  | "workflow-logic"
   | "send-notification"
   | "send-proposal"
 
@@ -35,15 +39,17 @@ interface SidebarNavProps {
 const ISO_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboard }[] = [
   { label: "Notifications", view: "notifications", icon: Bell },
   { label: "Dashboard", view: "dashboard", icon: LayoutDashboard },
-  { label: "Flight Requests", view: "flight-requests", icon: PlaneTakeoff },
+  { label: "Requests", view: "requests-new", icon: ListChecks },
   { label: "Proposals", view: "proposals", icon: FileText },
 ]
 
 const MANAGER_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboard }[] = [
   { label: "Notifications", view: "notifications", icon: Bell },
   { label: "Dashboard", view: "dashboard", icon: LayoutDashboard },
+  { label: "Requests (New)", view: "requests-new", icon: ListChecks },
   { label: "Flight Requests", view: "flight-requests", icon: PlaneTakeoff },
   { label: "RFQ Operations", view: "rfq-operations", icon: MessageSquare },
+  { label: "Workflow Logic", view: "workflow-logic", icon: GitBranch },
   { label: "Send Proposal", view: "send-proposal", icon: Send },
   { label: "Proposals", view: "proposals", icon: FileText },
   { label: "Send Notification", view: "send-notification", icon: Bell },

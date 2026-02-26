@@ -35,6 +35,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
   if (!currentUser) return null
 
   const isManager = currentUser.role === "manager"
+  const requestsView: PortalView = isManager ? "flight-requests" : "requests-new"
 
   const pendingRequests = flightRequests.filter((fr) => fr.status === "pending")
   const myRequests = isManager
@@ -57,7 +58,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       value: isManager ? pendingRequests.length : myRequests.length,
       icon: PlaneTakeoff,
       color: "bg-primary/10 text-primary",
-      onClick: () => onNavigate("flight-requests"),
+      onClick: () => onNavigate(requestsView),
       formatted: false,
     },
     {
@@ -170,10 +171,10 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <h2 className="text-sm font-semibold text-card-foreground">
-              {isManager ? "All Flight Requests" : "My Flight Requests"}
+              {isManager ? "All Flight Requests" : "My Requests"}
             </h2>
             <button
-              onClick={() => onNavigate("flight-requests")}
+              onClick={() => onNavigate(requestsView)}
               className="text-xs font-medium text-primary hover:underline"
             >
               View all

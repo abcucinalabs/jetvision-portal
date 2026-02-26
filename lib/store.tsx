@@ -57,8 +57,6 @@ export interface FlightRequest {
   avinodeBestQuoteCurrency?: string
   avinodeFirstQuoteAt?: string
   avinodeLastSyncAt?: string
-  avinodeSlaDueAt?: string
-  avinodeSlaStatus?: "on_track" | "at_risk" | "overdue" | "met"
   avinodeStatus?: "not_sent" | "sent_to_avinode" | "rfq_sent" | "quotes_received" | "booked" | "cancelled"
 }
 
@@ -369,7 +367,7 @@ interface StoreContextType {
   addAvinodeActivity: (item: Omit<AvinodeActivityItem, "id" | "timestamp">) => void
   updateFlightRequestAvinode: (
     id: string,
-    data: Partial<Pick<FlightRequest, "avinodeTripId" | "avinodeTripHref" | "avinodeSearchLink" | "avinodeViewLink" | "avinodeRfqIds" | "avinodeQuoteIds" | "avinodeQuoteCount" | "avinodeBestQuoteAmount" | "avinodeBestQuoteCurrency" | "avinodeFirstQuoteAt" | "avinodeLastSyncAt" | "avinodeSlaDueAt" | "avinodeSlaStatus" | "avinodeStatus">>
+    data: Partial<Pick<FlightRequest, "avinodeTripId" | "avinodeTripHref" | "avinodeSearchLink" | "avinodeViewLink" | "avinodeRfqIds" | "avinodeQuoteIds" | "avinodeQuoteCount" | "avinodeBestQuoteAmount" | "avinodeBestQuoteCurrency" | "avinodeFirstQuoteAt" | "avinodeLastSyncAt" | "avinodeStatus">>
   ) => void
   syncFlightRequestPipeline: (id: string) => Promise<void>
   avinodeWebhookEvents: AvinodeWebhookEventType[]
@@ -634,7 +632,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updateFlightRequestAvinode = useCallback(
     (
       id: string,
-      data: Partial<Pick<FlightRequest, "avinodeTripId" | "avinodeTripHref" | "avinodeSearchLink" | "avinodeViewLink" | "avinodeRfqIds" | "avinodeQuoteIds" | "avinodeQuoteCount" | "avinodeBestQuoteAmount" | "avinodeBestQuoteCurrency" | "avinodeFirstQuoteAt" | "avinodeLastSyncAt" | "avinodeSlaDueAt" | "avinodeSlaStatus" | "avinodeStatus">>
+      data: Partial<Pick<FlightRequest, "avinodeTripId" | "avinodeTripHref" | "avinodeSearchLink" | "avinodeViewLink" | "avinodeRfqIds" | "avinodeQuoteIds" | "avinodeQuoteCount" | "avinodeBestQuoteAmount" | "avinodeBestQuoteCurrency" | "avinodeFirstQuoteAt" | "avinodeLastSyncAt" | "avinodeStatus">>
     ) => {
       setFlightRequests((prev) =>
         prev.map((fr) => (fr.id === id ? { ...fr, ...data } : fr))

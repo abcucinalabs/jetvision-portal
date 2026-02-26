@@ -77,6 +77,11 @@ export async function getQuoteById(quoteId: string) {
   return json.data as Record<string, unknown>
 }
 
+async function getTripMessageById(messageId: string) {
+  const json = await fetchAvinode(`/tripmsgs/${messageId}`)
+  return json.data as Record<string, unknown>
+}
+
 function extractTripResourceId(flightRequest: Record<string, unknown>) {
   const direct = String(flightRequest.avinode_trip_id || "")
   if (direct.startsWith("atrip-")) return direct
@@ -94,39 +99,93 @@ function extractTripResourceId(flightRequest: Record<string, unknown>) {
 
 function extractRfqIdsFromTrip(trip: Record<string, unknown>) {
   const rfqs = (trip.rfqs as unknown[] | undefined) || []
-  const ids: string[] = []
+  const ids = new Set<string>()
 
   for (const item of rfqs) {
     if (typeof item === "string") {
-      ids.push(item)
+      const hrefMatch = item.match(/\/rfqs\/([^/?]+)/)
+      if (hrefMatch?.[1]) ids.add(hrefMatch[1])
+      else ids.add(item)
       continue
     }
     if (item && typeof item === "object") {
       const obj = item as Record<string, unknown>
-      if (obj.id) ids.push(String(obj.id))
+      if (obj.id) ids.add(String(obj.id))
       else if (obj.href && typeof obj.href === "string") {
         const m = obj.href.match(/\/rfqs\/([^/?]+)/)
-        if (m?.[1]) ids.push(m[1])
+        if (m?.[1]) ids.add(m[1])
       }
     }
   }
 
-  return Array.from(new Set(ids.filter(Boolean)))
+  // Some trip payload variants expose RFQ links outside trip.rfqs.
+  const walk = (value: unknown, depth: number) => {
+    if (depth > 6 || value === null || value === undefined) return
+    if (typeof value === "string") {
+      const hrefMatch = value.match(/\/rfqs\/([^/?]+)/)
+      if (hrefMatch?.[1]) ids.add(hrefMatch[1])
+      return
+    }
+    if (Array.isArray(value)) {
+      for (const v of value) walk(v, depth + 1)
+      return
+    }
+    if (typeof value === "object") {
+      for (const v of Object.values(value as Record<string, unknown>)) {
+        walk(v, depth + 1)
+      }
+    }
+  }
+
+  walk(trip, 0)
+
+  return Array.from(ids).filter(Boolean)
 }
 
 function extractQuotesFromRfq(rfq: Record<string, unknown>) {
   const sellerLift = (rfq.sellerLift as Record<string, unknown>[] | undefined) || []
-  const quotes: AvinodeQuoteSummary[] = []
+  const quotesById = new Map<string, AvinodeQuoteSummary>()
 
   for (const lift of sellerLift) {
+    const sourcingStatus = Number(lift.sourcingStatus ?? NaN)
+    const sourcingDisplayStatus = String(lift.sourcingDisplayStatus || "").toLowerCase()
     const latestQuote = lift.latestQuote as Record<string, unknown> | undefined
+    const hasOperatorResponse =
+      Boolean(latestQuote?.id) ||
+      sourcingStatus === 2 ||
+      sourcingDisplayStatus.includes("accepted") ||
+      sourcingDisplayStatus.includes("quoted")
+
+    if (!hasOperatorResponse) {
+      continue
+    }
+
+    const links = lift.links as Record<string, unknown> | undefined
+    const linkedQuotes = (links?.quotes as unknown[] | undefined) || []
+
+    for (const linked of linkedQuotes) {
+      if (!linked || typeof linked !== "object") continue
+      const linkedObj = linked as Record<string, unknown>
+      const id = linkedObj.id ? String(linkedObj.id) : ""
+      if (!id) continue
+      if (!quotesById.has(id)) {
+        quotesById.set(id, {
+          id,
+          amount: 0,
+          currency: "USD",
+        })
+      }
+    }
+
     if (!latestQuote) continue
 
     const price = latestQuote.price as Record<string, unknown> | undefined
     const operator = latestQuote.operator as Record<string, unknown> | undefined
+    const id = String(latestQuote.id || "")
+    if (!id) continue
 
-    quotes.push({
-      id: String(latestQuote.id || ""),
+    quotesById.set(id, {
+      id,
       amount: Number(price?.amount || 0),
       currency: String(price?.currency || "USD"),
       operatorName: operator?.displayName ? String(operator.displayName) : undefined,
@@ -134,27 +193,64 @@ function extractQuotesFromRfq(rfq: Record<string, unknown>) {
     })
   }
 
-  return quotes.filter((q) => q.id && Number.isFinite(q.amount) && q.amount > 0)
+  return Array.from(quotesById.values()).filter((q) => q.id)
 }
 
-function computeSla(createdAt: string, quoteCount: number) {
-  const now = Date.now()
-  const createdMs = new Date(createdAt).getTime()
-  const dueMs = createdMs + 6 * 60 * 60 * 1000
+function extractLinkedQuoteIdsFromRfq(rfq: Record<string, unknown>) {
+  const sellerLift = (rfq.sellerLift as Record<string, unknown>[] | undefined) || []
+  const ids = new Set<string>()
 
-  let slaStatus: "on_track" | "at_risk" | "overdue" | "met" = "on_track"
+  for (const lift of sellerLift) {
+    const links = lift.links as Record<string, unknown> | undefined
+    const linkedQuotes = (links?.quotes as unknown[] | undefined) || []
+    for (const linked of linkedQuotes) {
+      if (!linked || typeof linked !== "object") continue
+      const linkedObj = linked as Record<string, unknown>
+      if (linkedObj.id) ids.add(String(linkedObj.id))
+    }
+  }
 
-  if (quoteCount > 0) {
-    slaStatus = "met"
-  } else if (now > dueMs) {
-    slaStatus = "overdue"
-  } else if (now > dueMs - 60 * 60 * 1000) {
-    slaStatus = "at_risk"
+  return Array.from(ids)
+}
+
+function extractSellerQuoteFromTripMessage(msg: Record<string, unknown>) {
+  const sellerQuote = msg.sellerQuote as Record<string, unknown> | undefined
+  if (!sellerQuote) return null
+
+  const sellerPrice = sellerQuote.sellerPrice as Record<string, unknown> | undefined
+  const quote: AvinodeQuoteSummary = {
+    id: String(sellerQuote.id || ""),
+    amount: Number(sellerPrice?.amount || sellerPrice?.price || 0),
+    currency: String(sellerPrice?.currency || "USD"),
+    createdOn: sellerQuote.createdOn ? String(sellerQuote.createdOn) : undefined,
+  }
+
+  if (!quote.id) return null
+
+  const linkedQuoteIds = new Set<string>()
+  const lifts = (msg.lift as Record<string, unknown>[] | undefined) || []
+  for (const lift of lifts) {
+    const links = lift.links as Record<string, unknown> | undefined
+    const linkedQuotes = (links?.quotes as unknown[] | undefined) || []
+    for (const linked of linkedQuotes) {
+      if (!linked || typeof linked !== "object") continue
+      const linkedObj = linked as Record<string, unknown>
+      if (linkedObj.id) linkedQuoteIds.add(String(linkedObj.id))
+    }
+  }
+
+  const rfqIds = new Set<string>()
+  const rfqLinks = ((msg.links as Record<string, unknown> | undefined)?.rfqs as unknown[] | undefined) || []
+  for (const rfq of rfqLinks) {
+    if (!rfq || typeof rfq !== "object") continue
+    const rfqObj = rfq as Record<string, unknown>
+    if (rfqObj.id) rfqIds.add(String(rfqObj.id))
   }
 
   return {
-    dueAt: new Date(dueMs).toISOString(),
-    slaStatus,
+    quote,
+    linkedQuoteIds: Array.from(linkedQuoteIds),
+    rfqIds: Array.from(rfqIds),
   }
 }
 
@@ -173,16 +269,16 @@ export async function syncFlightRequestPipeline(flightRequestId: string) {
 
   let rfqIds = ((flightRequest.avinode_rfq_ids as string[] | null) || []).filter(Boolean)
 
-  // If webhooks haven't populated RFQ ids yet, discover them from the trip resource.
-  if (rfqIds.length === 0) {
-    const tripResourceId = extractTripResourceId(flightRequest as Record<string, unknown>)
-    if (tripResourceId) {
-      try {
-        const trip = await getTripById(tripResourceId)
-        rfqIds = extractRfqIdsFromTrip(trip)
-      } catch {
-        // Continue with empty RFQ list; sync still updates SLA/sync timestamp.
-      }
+  // Always attempt trip-based RFQ discovery and merge with stored IDs.
+  // This recovers missing RFQs when only a subset arrived through webhooks.
+  const tripResourceId = extractTripResourceId(flightRequest as Record<string, unknown>)
+  if (tripResourceId) {
+    try {
+      const trip = await getTripById(tripResourceId)
+      const discovered = extractRfqIdsFromTrip(trip)
+      rfqIds = Array.from(new Set([...rfqIds, ...discovered]))
+    } catch {
+      // Continue with currently known RFQ IDs; sync still updates timestamp.
     }
   }
 
@@ -191,50 +287,100 @@ export async function syncFlightRequestPipeline(flightRequestId: string) {
   let bestQuoteAmount: number | null = null
   let bestQuoteCurrency: string | null = null
   let bestQuoteId: string | null = null
-  const allQuoteIds: string[] = []
+  const linkedQuoteIds = new Set<string>()
+  const respondedQuoteIds = new Set<string>()
+  const sellerQuoteByLinkedQuoteId = new Map<string, AvinodeQuoteSummary>()
+  const sellerQuotesByRfqId = new Map<string, AvinodeQuoteSummary[]>()
+
+  if (tripResourceId) {
+    try {
+      const trip = await getTripById(tripResourceId)
+      const tripMessages = (((trip.links as Record<string, unknown> | undefined)?.tripmsgs as unknown[] | undefined) || [])
+        .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+
+      for (const msgLink of tripMessages) {
+        const msgId = msgLink.id ? String(msgLink.id) : ""
+        if (!msgId) continue
+        try {
+          const msg = await getTripMessageById(msgId)
+          const extracted = extractSellerQuoteFromTripMessage(msg)
+          if (!extracted) continue
+
+          for (const linkedId of extracted.linkedQuoteIds) {
+            sellerQuoteByLinkedQuoteId.set(linkedId, extracted.quote)
+          }
+          for (const rfqId of extracted.rfqIds) {
+            const existing = sellerQuotesByRfqId.get(rfqId) || []
+            if (!existing.some((q) => q.id === extracted.quote.id)) {
+              existing.push(extracted.quote)
+              sellerQuotesByRfqId.set(rfqId, existing)
+            }
+          }
+        } catch {
+          // Ignore individual trip message parse failures.
+        }
+      }
+    } catch {
+      // Ignore trip-message enrichment failures.
+    }
+  }
 
   for (const rfqId of rfqIds) {
     const rfq = await getRfqById(rfqId)
-    const quotes = extractQuotesFromRfq(rfq)
+    const linkedQuotesForRfq = extractLinkedQuoteIdsFromRfq(rfq)
+    for (const linkedId of linkedQuotesForRfq) linkedQuoteIds.add(linkedId)
+
+    const rawQuotes = extractQuotesFromRfq(rfq)
+    const mappedQuotes = rawQuotes.map((q) => sellerQuoteByLinkedQuoteId.get(q.id) || q)
+    const rfqSellerQuotes = sellerQuotesByRfqId.get(rfqId) || []
+    const quotes = [...mappedQuotes, ...rfqSellerQuotes]
 
     for (const quote of quotes) {
+      if (respondedQuoteIds.has(quote.id)) continue
+      respondedQuoteIds.add(quote.id)
       quoteCount += 1
-      allQuoteIds.push(quote.id)
 
       if (!firstQuoteAt || (quote.createdOn && new Date(quote.createdOn) < new Date(firstQuoteAt))) {
         firstQuoteAt = quote.createdOn || firstQuoteAt
       }
+    }
+  }
 
-      if (bestQuoteAmount === null || quote.amount < bestQuoteAmount) {
-        bestQuoteAmount = quote.amount
-        bestQuoteCurrency = quote.currency
-        bestQuoteId = quote.id
+  // Fetch quote details to compute best quote and accurate firstQuoteAt.
+  for (const quoteId of respondedQuoteIds) {
+    try {
+      const quote = await getQuoteById(quoteId)
+      const price =
+        (quote.price as Record<string, unknown> | undefined) ||
+        (quote.sellerPrice as Record<string, unknown> | undefined)
+      const amount = Number(price?.amount || price?.price || 0)
+      const currency = String(price?.currency || "USD")
+      const createdOn = quote.createdOn ? String(quote.createdOn) : null
+
+      if (createdOn && (!firstQuoteAt || new Date(createdOn) < new Date(firstQuoteAt))) {
+        firstQuoteAt = createdOn
       }
+
+      if (amount > 0 && (bestQuoteAmount === null || amount < bestQuoteAmount)) {
+        bestQuoteAmount = amount
+        bestQuoteCurrency = currency
+        bestQuoteId = quoteId
+      }
+    } catch {
+      // Keep quote count from RFQ links even if quote details lookup fails.
     }
   }
 
-  if (bestQuoteId) {
-    const quote = await getQuoteById(bestQuoteId)
-    const price = quote.price as Record<string, unknown> | undefined
-    if (price?.amount) {
-      bestQuoteAmount = Number(price.amount)
-      bestQuoteCurrency = String(price.currency || bestQuoteCurrency || "USD")
-    }
-  }
-
-  const { dueAt, slaStatus } = computeSla(String(flightRequest.created_at), quoteCount)
   const avinodeStatus = quoteCount > 0 ? "quotes_received" : rfqIds.length > 0 ? "rfq_sent" : (flightRequest.avinode_status || "sent_to_avinode")
 
   const updates = {
     avinode_status: avinodeStatus,
     avinode_rfq_ids: rfqIds,
     avinode_quote_count: quoteCount,
-    avinode_quote_ids: allQuoteIds,
+    avinode_quote_ids: Array.from(linkedQuoteIds),
     avinode_first_quote_at: firstQuoteAt,
     avinode_best_quote_amount: bestQuoteAmount,
     avinode_best_quote_currency: bestQuoteCurrency,
-    avinode_sla_due_at: dueAt,
-    avinode_sla_status: slaStatus,
     avinode_last_sync_at: new Date().toISOString(),
   }
 
