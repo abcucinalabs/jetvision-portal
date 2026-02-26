@@ -1,28 +1,19 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo } from "react"
-import { useStore, type Customer, type FlightRequest } from "@/lib/store"
-import { createTrip, searchAirports } from "@/lib/avinode-client"
+import { useState, useRef, useEffect, useMemo, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import { useStore, type Customer } from "@/lib/store"
+import { searchAirports } from "@/lib/avinode-client"
 import { searchAirportDirectory } from "@/lib/airport-directory"
-import { formatDistanceToNow } from "date-fns"
 import {
   PlaneTakeoff,
   Plus,
   X,
-  Calendar,
-  Users,
-  MapPin,
   Search,
   UserPlus,
   ChevronDown,
-  ExternalLink,
-  Globe,
-  Send,
   Loader2,
-  CheckCircle2,
-  MessageSquare,
-  XCircle,
-  AlertCircle,
+  RefreshCw,
 } from "lucide-react"
 
 export function FlightRequestsView() {
@@ -30,19 +21,9 @@ export function FlightRequestsView() {
     currentUser,
     flightRequests,
     addFlightRequest,
-    addNotification,
-    updateFlightRequestStatus,
-    avinodeConnected,
-    updateFlightRequestAvinode,
-    addAvinodeActivity,
-    syncFlightRequestPipeline,
+    refreshFlightRequests,
   } = useStore()
   const [showForm, setShowForm] = useState(false)
-  const [sendingToAvinode, setSendingToAvinode] = useState<string | null>(null)
-  const [syncingPipeline, setSyncingPipeline] = useState<string | null>(null)
-  const [copiedSearchFor, setCopiedSearchFor] = useState<string | null>(null)
-  const [avinodeError, setAvinodeError] = useState<string | null>(null)
-  const [layoutMode, setLayoutMode] = useState<"cards" | "table">("cards")
   const [sortConfig, setSortConfig] = useState<{
     key: "clientName" | "isoName" | "departure" | "arrival" | "departureDate" | "passengers" | "status"
     direction: "asc" | "desc"
@@ -58,10 +39,16 @@ export function FlightRequestsView() {
     departureDate: "",
     status: "",
   })
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null)
+  const refreshInFlightRef = useRef(false)
+
+  const router = useRouter()
 
   if (!currentUser) return null
 
   const isManager = currentUser.role === "manager"
+  const isCreateMode = showForm && !isManager
 
   const requests = isManager
     ? flightRequests
@@ -109,129 +96,29 @@ export function FlightRequestsView() {
     })
   }
 
-  const handleSendToAvinode = async (fr: FlightRequest) => {
-    setSendingToAvinode(fr.id)
-    setAvinodeError(null)
-
+  const performRefresh = useCallback(async () => {
+    if (refreshInFlightRef.current) return
+    refreshInFlightRef.current = true
+    setRefreshing(true)
     try {
-      // Extract ICAO codes from airport strings like "Teterboro (KTEB)" or plain "KTEB"
-      const extractIcao = (airportStr: string) => {
-        const match = airportStr.match(/\(([A-Z]{4})\)/)
-        return match ? match[1] : airportStr.replace(/[^A-Z]/g, "").slice(0, 4)
-      }
-
-      const segments = [
-        {
-          startAirportIcao: extractIcao(fr.departure),
-          endAirportIcao: extractIcao(fr.arrival),
-          date: fr.departureDate,    // YYYY-MM-DD
-          timeTBD: true,
-          paxCount: fr.passengers,
-        },
-      ]
-
-      // Add return leg if round trip
-      if (fr.returnDate) {
-        segments.push({
-          startAirportIcao: extractIcao(fr.arrival),
-          endAirportIcao: extractIcao(fr.departure),
-          date: fr.returnDate,
-          timeTBD: true,
-          paxCount: fr.passengers,
-        })
-      }
-
-      // Real API call via our proxy route -- builds Avinode-format body internally
-      const response = await createTrip(segments, { sourcing: true })
-
-      // Avinode response shape: { data: { id, href, actions: { searchInAvinode, viewInAvinode } }, tripId: "XYZABC" }
-      const trip = response.data
-      const tripId = trip?.tripId || response.tripId || trip?.id || "unknown"
-      const searchLink = trip?.actions?.searchInAvinode?.href
-      const viewLink = trip?.actions?.viewInAvinode?.href
-
-      console.log("[v0] handleSendToAvinode: tripId:", tripId, "searchLink:", searchLink, "viewLink:", viewLink)
-
-      updateFlightRequestAvinode(fr.id, {
-        avinodeTripId: tripId,
-        avinodeTripHref: trip?.href,
-        avinodeSearchLink: searchLink || undefined,
-        avinodeViewLink: viewLink || undefined,
-        avinodeStatus: "sent_to_avinode",
-      })
-
-      addAvinodeActivity({
-        type: "trip_created",
-        title: "Trip Created in Avinode",
-        description: `Trip for ${fr.clientName}: ${fr.departure} to ${fr.arrival} on ${fr.departureDate}. ${fr.passengers} passengers. Trip ID: ${tripId}`,
-        flightRequestId: fr.id,
-        avinodeTripId: tripId,
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create trip in Avinode"
-      setAvinodeError(message)
-      addAvinodeActivity({
-        type: "trip_cancelled",
-        title: "Trip Creation Failed",
-        description: `Failed to create trip for ${fr.clientName}: ${message}`,
-        flightRequestId: fr.id,
-      })
+      await refreshFlightRequests()
+      setLastRefreshedAt(new Date())
     } finally {
-      setSendingToAvinode(null)
+      setRefreshing(false)
+      refreshInFlightRef.current = false
     }
-  }
+  }, [refreshFlightRequests])
 
-  const handleSyncPipeline = async (fr: FlightRequest) => {
-    setSyncingPipeline(fr.id)
-    setAvinodeError(null)
-    try {
-      await syncFlightRequestPipeline(fr.id)
-      addAvinodeActivity({
-        type: "search_completed",
-        title: "Sourcing Pipeline Synced",
-        description: `RFQ/quote status synced for ${fr.clientName}.`,
-        flightRequestId: fr.id,
-        avinodeTripId: fr.avinodeTripId,
-      })
-    } catch (error) {
-      setAvinodeError(error instanceof Error ? error.message : "Failed to sync Avinode pipeline")
-    } finally {
-      setSyncingPipeline(null)
+  useEffect(() => {
+    void performRefresh()
+    const intervalId = window.setInterval(() => {
+      void performRefresh()
+    }, 15 * 60 * 1000)
+
+    return () => {
+      window.clearInterval(intervalId)
     }
-  }
-
-  const handleCopySearchLink = async (frId: string, searchLink: string) => {
-    await navigator.clipboard.writeText(searchLink)
-    setCopiedSearchFor(frId)
-    setTimeout(() => setCopiedSearchFor(null), 1500)
-  }
-
-  const handleCancelRequest = (fr: FlightRequest) => {
-    const isCancelable = !["accepted", "declined", "cancelled"].includes(fr.status)
-    if (!isCancelable) return
-
-    const confirmed = window.confirm(
-      `Cancel this request for ${fr.clientName}? This will notify managers.`
-    )
-    if (!confirmed) return
-
-    updateFlightRequestStatus(fr.id, "cancelled")
-
-    if (fr.avinodeTripId) {
-      updateFlightRequestAvinode(fr.id, { avinodeStatus: "cancelled" })
-    }
-
-    addNotification({
-      title: "Flight Request Cancelled",
-      body: `${currentUser.name} cancelled the flight request for ${fr.clientName} (${fr.departure} -> ${fr.arrival} on ${fr.departureDate}).`,
-      fromUserId: currentUser.id,
-      fromUserName: currentUser.name,
-      toRole: "manager",
-    })
-  }
-
-  const getDisplayedRfqCount = (fr: FlightRequest) =>
-    Math.max(fr.avinodeRfqIds?.length || 0, fr.avinodeQuoteIds?.length || 0)
+  }, [performRefresh])
 
   return (
     <div className="space-y-6">
@@ -240,62 +127,49 @@ export function FlightRequestsView() {
           <h1 className="text-2xl font-bold text-foreground">Flight Requests</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isManager
-              ? "View and manage all incoming flight requests. Send to Avinode for aircraft sourcing."
+              ? "View and manage all incoming flight requests."
               : "Submit and track flight requests for your clients."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-lg border border-border p-1">
+        {isCreateMode ? (
+          <button
+            onClick={() => setShowForm(false)}
+            className="rounded-xl border border-input bg-background px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+          >
+            Back to Flight Requests
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="text-right">
+              <div className="text-[11px] text-muted-foreground">
+                {lastRefreshedAt
+                  ? `Last refreshed: ${lastRefreshedAt.toLocaleString()}`
+                  : "Last refreshed: --"}
+              </div>
+              <div className="text-[10px] text-muted-foreground/80">Auto refresh every 15 minutes</div>
+            </div>
             <button
-              type="button"
-              onClick={() => setLayoutMode("cards")}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                layoutMode === "cards"
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              onClick={() => void performRefresh()}
+              disabled={refreshing}
+              className="flex items-center gap-2 rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60"
             >
-              Card layout
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
             </button>
-            <button
-              type="button"
-              onClick={() => setLayoutMode("table")}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                layoutMode === "table"
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Table layout
-            </button>
+            {!isManager && (
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4" />
+                New Request
+              </button>
+            )}
           </div>
-          {!isManager && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4" />
-              New Request
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
-      {avinodeError && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3">
-          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-          <p className="flex-1 text-sm text-destructive">{avinodeError}</p>
-          <button
-            onClick={() => setAvinodeError(null)}
-            className="rounded-md p-1 text-destructive hover:bg-destructive/10"
-            aria-label="Dismiss error"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-
-      {showForm && (
+      {isCreateMode ? (
         <NewFlightRequestForm
           onClose={() => setShowForm(false)}
           onSubmit={(data) => {
@@ -307,356 +181,157 @@ export function FlightRequestsView() {
             setShowForm(false)
           }}
         />
-      )}
+      ) : (
+        <>
+          {requests.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-16">
+              <PlaneTakeoff className="h-10 w-10 text-muted-foreground/40" />
+              <p className="mt-3 text-sm font-medium text-muted-foreground">
+                No flight requests yet
+              </p>
+              {!isManager && (
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="mt-3 text-sm font-medium text-primary hover:underline"
+                >
+                  Create your first request
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+                <input
+                  value={tableFilters.clientName}
+                  onChange={(e) => setTableFilters((prev) => ({ ...prev, clientName: e.target.value }))}
+                  placeholder="Filter client"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {isManager && (
+                  <input
+                    value={tableFilters.isoName}
+                    onChange={(e) => setTableFilters((prev) => ({ ...prev, isoName: e.target.value }))}
+                    placeholder="Filter ISO"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                )}
+                <input
+                  value={tableFilters.departure}
+                  onChange={(e) => setTableFilters((prev) => ({ ...prev, departure: e.target.value }))}
+                  placeholder="Filter departure"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <input
+                  value={tableFilters.arrival}
+                  onChange={(e) => setTableFilters((prev) => ({ ...prev, arrival: e.target.value }))}
+                  placeholder="Filter arrival"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <input
+                  value={tableFilters.departureDate}
+                  onChange={(e) => setTableFilters((prev) => ({ ...prev, departureDate: e.target.value }))}
+                  placeholder="Filter date (YYYY-MM-DD)"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <select
+                  value={tableFilters.status}
+                  onChange={(e) => setTableFilters((prev) => ({ ...prev, status: e.target.value }))}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="under_review">Under Review</option>
+                  <option value="rfq_submitted">RFQ Submitted</option>
+                  <option value="quote_received">Quote Received</option>
+                  <option value="proposal_ready">Proposal Ready</option>
+                  <option value="proposal_sent">Proposal Sent</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="declined">Declined</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
 
-      {requests.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-16">
-          <PlaneTakeoff className="h-10 w-10 text-muted-foreground/40" />
-          <p className="mt-3 text-sm font-medium text-muted-foreground">
-            No flight requests yet
-          </p>
-          {!isManager && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="mt-3 text-sm font-medium text-primary hover:underline"
-            >
-              Create your first request
-            </button>
-          )}
-        </div>
-      ) : layoutMode === "cards" ? (
-        <div className="grid gap-4">
-          {requests.map((fr) => (
-            <div
-              key={fr.id}
-              className="rounded-xl border border-border bg-card p-5 transition-all hover:shadow-sm"
-            >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-base font-semibold text-card-foreground">
-                      {fr.clientName}
-                    </h3>
-                    <StatusBadge status={fr.status} />
-                    {fr.avinodeStatus && (
-                      <AvinodeStatusBadge status={fr.avinodeStatus} />
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5" />
-                      {fr.departure} &rarr; {fr.arrival}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5" />
-                      {fr.departureDate}
-                      {fr.returnDate && ` - ${fr.returnDate}`}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Users className="h-3.5 w-3.5" />
-                      {fr.passengers} pax
-                    </span>
-                  </div>
-                  {fr.specialRequests && (
-                    <p className="text-xs text-muted-foreground italic">
-                      &ldquo;{fr.specialRequests}&rdquo;
-                    </p>
-                  )}
-
-                  {/* Avinode Trip ID */}
-                  {fr.avinodeTripId && (
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">
-                        Avinode: {fr.avinodeTripId}
-                      </span>
-                      {typeof fr.avinodeQuoteCount === "number" && (
-                        <span className="rounded bg-accent/10 px-1.5 py-0.5 font-medium text-accent">
-                          Quotes: {fr.avinodeQuoteCount}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {fr.avinodeTripId && (
-                    <div className="rounded-lg border border-border bg-muted/20 p-2.5 text-xs">
-                      <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
-                        <span>RFQs: {getDisplayedRfqCount(fr)}</span>
-                        <span>Quotes: {fr.avinodeQuoteCount || 0}</span>
-                        {fr.avinodeBestQuoteAmount && (
-                          <span className="font-medium text-card-foreground">
-                            Best: {fr.avinodeBestQuoteCurrency || "USD"} {fr.avinodeBestQuoteAmount.toLocaleString()}
-                          </span>
-                        )}
-                        {fr.avinodeLastSyncAt && (
-                          <span>Synced {formatDistanceToNow(new Date(fr.avinodeLastSyncAt), { addSuffix: true })}</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  {isManager && (
-                    <div className="text-xs text-muted-foreground">
-                      <span className="font-medium text-card-foreground">ISO:</span>{" "}
-                      {fr.isoName}
-                    </div>
-                  )}
-
-                  {!isManager && !["accepted", "declined", "cancelled"].includes(fr.status) && (
-                    <button
-                      type="button"
-                      onClick={() => handleCancelRequest(fr)}
-                      className="flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
-                    >
-                      <XCircle className="h-3.5 w-3.5" />
-                      Cancel Request
-                    </button>
-                  )}
-
-                  {/* Avinode Actions for Manager */}
-                  {isManager && (
-                    <div className="flex flex-col gap-1.5">
-                      {!fr.avinodeTripId ? (
-                        <button
-                          onClick={() => handleSendToAvinode(fr)}
-                          disabled={!avinodeConnected || sendingToAvinode === fr.id}
-                          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title={!avinodeConnected ? "Set Avinode credentials in .env.local first" : "Create trip in Avinode via POST /trips"}
-                        >
-                          {sendingToAvinode === fr.id ? (
-                            <>
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              Sending...
-                            </>
-                          ) : (
-                            <>
-                              <Globe className="h-3 w-3" />
-                              Send to Avinode
-                            </>
-                          )}
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="px-3 py-2 text-left">
+                        <button type="button" onClick={() => handleSort("clientName")} className="font-semibold text-card-foreground hover:underline">
+                          Client {sortConfig.key === "clientName" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
                         </button>
-                      ) : (
-                        <>
-                          {fr.avinodeSearchLink && (
-                            <div className="flex gap-1.5">
-                              <a
-                                href={fr.avinodeSearchLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 rounded-lg bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/20 transition-colors"
-                              >
-                                <Search className="h-3 w-3" />
-                                Search in Avinode
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => handleCopySearchLink(fr.id, fr.avinodeSearchLink!)}
-                                className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted"
-                              >
-                                {copiedSearchFor === fr.id ? "Copied" : "Copy URL"}
-                              </button>
-                            </div>
-                          )}
-                          {fr.avinodeViewLink && (
-                            <a
-                              href={fr.avinodeViewLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              View in Avinode
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleSyncPipeline(fr)}
-                            disabled={syncingPipeline === fr.id}
-                            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                            title="Sync RFQ and quote pipeline from Avinode"
-                          >
-                            {syncingPipeline === fr.id ? (
-                              <>
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                Syncing...
-                              </>
-                            ) : (
-                              <>
-                                <MessageSquare className="h-3 w-3" />
-                                Sync Pipeline
-                              </>
-                            )}
+                      </th>
+                      {isManager && (
+                        <th className="px-3 py-2 text-left">
+                          <button type="button" onClick={() => handleSort("isoName")} className="font-semibold text-card-foreground hover:underline">
+                            ISO {sortConfig.key === "isoName" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
                           </button>
-                        </>
+                        </th>
                       )}
-                    </div>
-                  )}
-                </div>
+                      <th className="px-3 py-2 text-left">
+                        <button type="button" onClick={() => handleSort("departure")} className="font-semibold text-card-foreground hover:underline">
+                          Route {sortConfig.key === "departure" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-left">
+                        <button type="button" onClick={() => handleSort("departureDate")} className="font-semibold text-card-foreground hover:underline">
+                          Date {sortConfig.key === "departureDate" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-left">
+                        <button type="button" onClick={() => handleSort("passengers")} className="font-semibold text-card-foreground hover:underline">
+                          Pax {sortConfig.key === "passengers" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-left">
+                        <button type="button" onClick={() => handleSort("status")} className="font-semibold text-card-foreground hover:underline">
+                          Status {sortConfig.key === "status" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableRequests.length === 0 ? (
+                      <tr>
+                        <td colSpan={isManager ? 6 : 5} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                          No matching flight requests for current filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      tableRequests.map((fr) => (
+                        <tr
+                          key={fr.id}
+                          onClick={() => router.push(`/requests/${fr.id}`)}
+                          className="cursor-pointer border-b border-border/60 last:border-b-0 hover:bg-muted/40 transition-colors"
+                        >
+                          <td className="px-3 py-2.5 font-medium text-card-foreground">{fr.clientName}</td>
+                          {isManager && <td className="px-3 py-2.5 text-muted-foreground">{fr.isoName}</td>}
+                          <td className="px-3 py-2.5 text-muted-foreground">{fr.departure} → {fr.arrival}</td>
+                          <td className="px-3 py-2.5 text-muted-foreground">{fr.departureDate}</td>
+                          <td className="px-3 py-2.5 text-muted-foreground">{fr.passengers}</td>
+                          <td className="px-3 py-2.5"><StatusBadge status={fr.status} /></td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-            <input
-              value={tableFilters.clientName}
-              onChange={(e) => setTableFilters((prev) => ({ ...prev, clientName: e.target.value }))}
-              placeholder="Filter client"
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            {isManager && (
-              <input
-                value={tableFilters.isoName}
-                onChange={(e) => setTableFilters((prev) => ({ ...prev, isoName: e.target.value }))}
-                placeholder="Filter ISO"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            )}
-            <input
-              value={tableFilters.departure}
-              onChange={(e) => setTableFilters((prev) => ({ ...prev, departure: e.target.value }))}
-              placeholder="Filter departure"
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <input
-              value={tableFilters.arrival}
-              onChange={(e) => setTableFilters((prev) => ({ ...prev, arrival: e.target.value }))}
-              placeholder="Filter arrival"
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <input
-              value={tableFilters.departureDate}
-              onChange={(e) => setTableFilters((prev) => ({ ...prev, departureDate: e.target.value }))}
-              placeholder="Filter date (YYYY-MM-DD)"
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <select
-              value={tableFilters.status}
-              onChange={(e) => setTableFilters((prev) => ({ ...prev, status: e.target.value }))}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">All statuses</option>
-              <option value="pending">Pending</option>
-              <option value="proposal_sent">Proposal Sent</option>
-              <option value="accepted">Accepted</option>
-              <option value="declined">Declined</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[880px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="px-3 py-2 text-left">
-                    <button type="button" onClick={() => handleSort("clientName")} className="font-semibold text-card-foreground hover:underline">
-                      Client {sortConfig.key === "clientName" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                    </button>
-                  </th>
-                  {isManager && (
-                    <th className="px-3 py-2 text-left">
-                      <button type="button" onClick={() => handleSort("isoName")} className="font-semibold text-card-foreground hover:underline">
-                        ISO {sortConfig.key === "isoName" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                      </button>
-                    </th>
-                  )}
-                  <th className="px-3 py-2 text-left">
-                    <button type="button" onClick={() => handleSort("departure")} className="font-semibold text-card-foreground hover:underline">
-                      Departure {sortConfig.key === "departure" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-left">
-                    <button type="button" onClick={() => handleSort("arrival")} className="font-semibold text-card-foreground hover:underline">
-                      Arrival {sortConfig.key === "arrival" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-left">
-                    <button type="button" onClick={() => handleSort("departureDate")} className="font-semibold text-card-foreground hover:underline">
-                      Date {sortConfig.key === "departureDate" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-left">
-                    <button type="button" onClick={() => handleSort("passengers")} className="font-semibold text-card-foreground hover:underline">
-                      Pax {sortConfig.key === "passengers" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-left">
-                    <button type="button" onClick={() => handleSort("status")} className="font-semibold text-card-foreground hover:underline">
-                      Status {sortConfig.key === "status" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                    </button>
-                  </th>
-                  {!isManager && <th className="px-3 py-2 text-left font-semibold text-card-foreground">Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {tableRequests.length === 0 ? (
-                  <tr>
-                    <td colSpan={isManager ? 7 : 8} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                      No matching flight requests for current filters.
-                    </td>
-                  </tr>
-                ) : (
-                  tableRequests.map((fr) => (
-                    <tr key={fr.id} className="border-b border-border/60 last:border-b-0">
-                      <td className="px-3 py-2 text-card-foreground">{fr.clientName}</td>
-                      {isManager && <td className="px-3 py-2 text-muted-foreground">{fr.isoName}</td>}
-                      <td className="px-3 py-2 text-muted-foreground">{fr.departure}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{fr.arrival}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{fr.departureDate}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{fr.passengers}</td>
-                      <td className="px-3 py-2"><StatusBadge status={fr.status} /></td>
-                      {!isManager && (
-                        <td className="px-3 py-2">
-                          {!["accepted", "declined", "cancelled"].includes(fr.status) ? (
-                            <button
-                              type="button"
-                              onClick={() => handleCancelRequest(fr)}
-                              className="rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
-                            >
-                              Cancel
-                            </button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">-</span>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
-  )
-}
-
-function AvinodeStatusBadge({ status }: { status: string }) {
-  const config: Record<string, { bg: string; text: string; label: string }> = {
-    not_sent: { bg: "bg-muted", text: "text-muted-foreground", label: "Not in Avinode" },
-    sent_to_avinode: { bg: "bg-primary/10", text: "text-primary", label: "In Avinode" },
-    rfq_sent: { bg: "bg-accent/10", text: "text-accent", label: "RFQ Sent" },
-    quotes_received: { bg: "bg-green-500/10", text: "text-green-600", label: "Quotes Received" },
-    booked: { bg: "bg-green-500/10", text: "text-green-600", label: "Booked" },
-    cancelled: { bg: "bg-destructive/10", text: "text-destructive", label: "Cancelled" },
-  }
-  const c = config[status] || config.not_sent
-  return (
-    <span className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${c.bg} ${c.text}`}>
-      <Globe className="h-3 w-3" />
-      {c.label}
-    </span>
   )
 }
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
     pending: { bg: "bg-accent/10", text: "text-accent", label: "Pending" },
+    under_review: { bg: "bg-blue-500/10", text: "text-blue-600", label: "Under Review" },
+    rfq_submitted: { bg: "bg-violet-500/10", text: "text-violet-600", label: "RFQ Submitted" },
+    quote_received: { bg: "bg-amber-500/10", text: "text-amber-600", label: "Quote Received" },
+    proposal_ready: { bg: "bg-primary/10", text: "text-primary", label: "Proposal Ready" },
     proposal_sent: { bg: "bg-primary/10", text: "text-primary", label: "Proposal Sent" },
-    accepted: { bg: "bg-success/10", text: "text-success", label: "Accepted" },
+    accepted: { bg: "bg-green-500/10", text: "text-green-600", label: "Accepted" },
     declined: { bg: "bg-destructive/10", text: "text-destructive", label: "Declined" },
     cancelled: { bg: "bg-destructive/10", text: "text-destructive", label: "Cancelled" },
   }
@@ -675,7 +350,9 @@ export interface FormData {
   departure: string
   arrival: string
   departureDate: string
+  departureTime?: string
   returnDate?: string
+  returnTime?: string
   passengers: number
   specialRequests?: string
 }
@@ -753,7 +430,7 @@ export function NewFlightRequestForm({
   onClose: () => void
   onSubmit: (data: FormData) => void
 }) {
-  const { customers, addCustomer, avinodeConnected } = useStore()
+  const { currentUser, customers, addCustomer, avinodeConnected } = useStore()
   const [customerMode, setCustomerMode] = useState<"select" | "new">("select")
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [customerSearch, setCustomerSearch] = useState("")
@@ -770,16 +447,7 @@ export function NewFlightRequestForm({
   const [selectedArrivalIcao, setSelectedArrivalIcao] = useState("")
   const [searchingDeparture, setSearchingDeparture] = useState(false)
   const [searchingArrival, setSearchingArrival] = useState(false)
-  const [availabilitySearching, setAvailabilitySearching] = useState(false)
-  const [availabilityError, setAvailabilityError] = useState<string | null>(null)
   const [airportLookupError, setAirportLookupError] = useState<string | null>(null)
-  const [copiedSearchUrl, setCopiedSearchUrl] = useState(false)
-  const [availabilityResult, setAvailabilityResult] = useState<{
-    tripId?: string
-    href?: string
-    searchLink?: string
-    viewLink?: string
-  } | null>(null)
 
   const [form, setForm] = useState<FormData>({
     clientName: "",
@@ -788,7 +456,9 @@ export function NewFlightRequestForm({
     departure: "",
     arrival: "",
     departureDate: "",
+    departureTime: "",
     returnDate: "",
+    returnTime: "",
     passengers: 1,
     specialRequests: "",
   })
@@ -859,7 +529,11 @@ export function NewFlightRequestForm({
     return () => clearTimeout(timer)
   }, [avinodeConnected, form.arrival])
 
-  const filteredCustomers = customers.filter(
+  const visibleCustomers = currentUser?.role === "iso"
+    ? customers.filter((c) => c.visibleToIsoIds?.includes(currentUser.id))
+    : customers
+
+  const filteredCustomers = visibleCustomers.filter(
     (c) =>
       c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
       c.email.toLowerCase().includes(customerSearch.toLowerCase())
@@ -910,88 +584,18 @@ export function NewFlightRequestForm({
         name: form.clientName,
         email: form.clientEmail,
         phone: form.clientPhone,
+        createdByUserId: currentUser?.id,
+        visibleToIsoIds: currentUser?.role === "iso" ? [currentUser.id] : [],
       })
     }
 
     onSubmit({
       ...form,
+      departureTime: form.departureTime || undefined,
       returnDate: tripType === "round_trip" ? form.returnDate || undefined : undefined,
+      returnTime: tripType === "round_trip" ? form.returnTime || undefined : undefined,
       specialRequests: form.specialRequests || undefined,
     })
-  }
-
-  const extractIcao = (airportStr: string) => {
-    const match = airportStr.match(/\(([A-Z]{4})\)/)
-    return match ? match[1] : airportStr.replace(/[^A-Z]/g, "").slice(0, 4)
-  }
-
-  const handleAvailabilitySearch = async () => {
-    setAvailabilityError(null)
-    setAvailabilityResult(null)
-
-    if (!avinodeConnected) {
-      setAvailabilityError("Avinode credentials are not configured in environment variables.")
-      return
-    }
-
-    if (!form.departure || !form.arrival || !form.departureDate || form.passengers < 1) {
-      setAvailabilityError("Add departure/arrival airports, departure date, and passengers first.")
-      return
-    }
-
-    setAvailabilitySearching(true)
-    try {
-      const outboundStart = selectedDepartureIcao || extractIcao(form.departure)
-      const outboundEnd = selectedArrivalIcao || extractIcao(form.arrival)
-
-      if (outboundStart.length !== 4 || outboundEnd.length !== 4) {
-        throw new Error("Use airports with valid ICAO codes (4 letters).")
-      }
-
-      const segments = [
-        {
-          startAirportIcao: outboundStart,
-          endAirportIcao: outboundEnd,
-          date: form.departureDate,
-          timeTBD: true,
-          paxCount: form.passengers,
-        },
-      ]
-
-      if (tripType === "round_trip") {
-        if (!form.returnDate) {
-          throw new Error("Select a return date for round-trip searches.")
-        }
-        segments.push({
-          startAirportIcao: outboundEnd,
-          endAirportIcao: outboundStart,
-          date: form.returnDate,
-          timeTBD: true,
-          paxCount: form.passengers,
-        })
-      }
-
-      const response = await createTrip(segments, { sourcing: true })
-      const trip = response.data
-      setAvailabilityResult({
-        tripId: trip?.tripId || response.tripId || trip?.id,
-        href: trip?.href,
-        searchLink: trip?.actions?.searchInAvinode?.href,
-        viewLink: trip?.actions?.viewInAvinode?.href,
-      })
-      setCopiedSearchUrl(false)
-    } catch (error) {
-      setAvailabilityError(error instanceof Error ? error.message : "Availability search failed")
-    } finally {
-      setAvailabilitySearching(false)
-    }
-  }
-
-  const handleCopySearchUrl = async () => {
-    if (!availabilityResult?.searchLink) return
-    await navigator.clipboard.writeText(availabilityResult.searchLink)
-    setCopiedSearchUrl(true)
-    setTimeout(() => setCopiedSearchUrl(false), 1500)
   }
 
   return (
@@ -1249,7 +853,7 @@ export function NewFlightRequestForm({
             type="button"
             onClick={() => {
               setTripType("one_way")
-              setForm((prev) => ({ ...prev, returnDate: "" }))
+              setForm((prev) => ({ ...prev, returnDate: "", returnTime: "" }))
             }}
             className={`rounded-md px-2.5 py-1 text-xs font-medium ${tripType === "one_way" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
           >
@@ -1264,7 +868,7 @@ export function NewFlightRequestForm({
           </button>
         </div>
 
-        <div className={`grid gap-4 ${tripType === "round_trip" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+        <div className={`grid gap-4 ${tripType === "round_trip" ? "sm:grid-cols-2 lg:grid-cols-5" : "sm:grid-cols-3"}`}>
           <label className="space-y-1.5">
             <span className="text-xs font-medium text-muted-foreground">Departure Date *</span>
             <input
@@ -1272,6 +876,15 @@ export function NewFlightRequestForm({
               type="date"
               value={form.departureDate}
               onChange={(e) => setForm({ ...form, departureDate: e.target.value })}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Requested Departure Time</span>
+            <input
+              type="time"
+              value={form.departureTime}
+              onChange={(e) => setForm({ ...form, departureTime: e.target.value })}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </label>
@@ -1283,6 +896,18 @@ export function NewFlightRequestForm({
                 type="date"
                 value={form.returnDate}
                 onChange={(e) => setForm({ ...form, returnDate: e.target.value })}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </label>
+          )}
+          {tripType === "round_trip" && (
+            <label className="space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Return Time *</span>
+              <input
+                required
+                type="time"
+                value={form.returnTime}
+                onChange={(e) => setForm({ ...form, returnTime: e.target.value })}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </label>
@@ -1311,87 +936,6 @@ export function NewFlightRequestForm({
             placeholder="Catering, ground transport, special accommodations..."
           />
         </label>
-
-        <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAvailabilitySearch}
-              disabled={!avinodeConnected || availabilitySearching}
-              className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {availabilitySearching ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Searching...
-                </>
-              ) : (
-                <>
-                  <Search className="h-3 w-3" />
-                  Search Available Flights
-                </>
-              )}
-            </button>
-            {!avinodeConnected && (
-              <span className="text-[11px] text-muted-foreground">
-                Configure Avinode first in Settings.
-              </span>
-            )}
-          </div>
-          {availabilityError && (
-            <p className="text-xs text-destructive">{availabilityError}</p>
-          )}
-          {availabilityResult?.tripId && (
-            <div className="space-y-1 text-xs">
-              <p className="text-muted-foreground">
-                Search ready in Avinode Marketplace. No booking is made.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                {availabilityResult.searchLink && (
-                  <a
-                    href={availabilityResult.searchLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-2 py-1 font-semibold text-accent hover:bg-accent/20"
-                  >
-                    Open Availability
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-                {availabilityResult.searchLink && (
-                  <button
-                    type="button"
-                    onClick={handleCopySearchUrl}
-                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium text-muted-foreground hover:bg-muted"
-                  >
-                    {copiedSearchUrl ? (
-                      <>
-                        <CheckCircle2 className="h-3 w-3" />
-                        Copied
-                      </>
-                    ) : (
-                      <>
-                        <ExternalLink className="h-3 w-3" />
-                        Copy Search URL
-                      </>
-                    )}
-                  </button>
-                )}
-                {availabilityResult.viewLink && (
-                  <a
-                    href={availabilityResult.viewLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium text-muted-foreground hover:bg-muted"
-                  >
-                    View Trip
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
 
         <div className="flex items-center justify-end gap-3 pt-2">
           <button

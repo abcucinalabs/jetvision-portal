@@ -262,7 +262,7 @@ export async function syncFlightRequestPipeline(flightRequestId: string) {
 
   const { data: flightRequest, error: frError } = await supabase
     .from("flight_requests")
-    .select("id, created_at, avinode_rfq_ids, avinode_status, avinode_trip_id, avinode_trip_href, avinode_search_link")
+    .select("id, status, created_at, avinode_rfq_ids, avinode_status, avinode_trip_id, avinode_trip_href, avinode_search_link")
     .eq("id", flightRequestId)
     .single()
 
@@ -375,8 +375,13 @@ export async function syncFlightRequestPipeline(flightRequestId: string) {
   }
 
   const avinodeStatus = quoteCount > 0 ? "quotes_received" : rfqIds.length > 0 ? "rfq_sent" : (flightRequest.avinode_status || "sent_to_avinode")
+  const shouldAdvanceToQuoteReceived =
+    quoteCount > 0 &&
+    (flightRequest.status === "under_review" || flightRequest.status === "rfq_submitted")
+  const nextRequestStatus = shouldAdvanceToQuoteReceived ? "quote_received" : flightRequest.status
 
   const updates = {
+    status: nextRequestStatus,
     avinode_status: avinodeStatus,
     avinode_rfq_ids: rfqIds,
     avinode_quote_count: quoteCount,

@@ -24,11 +24,25 @@ export interface Notification {
   fromUserId: string
   fromUserName: string
   toRole: UserRole | "all"
+  toUserId?: string
   createdAt: string
   read: boolean
+  readAt?: string
+  deleted?: boolean
+  deletedAt?: string
+  deletedByUserId?: string
 }
 
-export type FlightRequestStatus = "pending" | "proposal_sent" | "accepted" | "declined" | "cancelled"
+export type FlightRequestStatus =
+  | "pending"
+  | "under_review"
+  | "rfq_submitted"
+  | "quote_received"
+  | "proposal_ready"
+  | "proposal_sent"
+  | "accepted"
+  | "declined"
+  | "cancelled"
 
 export interface FlightRequest {
   id: string
@@ -40,7 +54,9 @@ export interface FlightRequest {
   departure: string
   arrival: string
   departureDate: string
+  departureTime?: string
   returnDate?: string
+  returnTime?: string
   passengers: number
   specialRequests?: string
   status: FlightRequestStatus
@@ -58,6 +74,15 @@ export interface FlightRequest {
   avinodeFirstQuoteAt?: string
   avinodeLastSyncAt?: string
   avinodeStatus?: "not_sent" | "sent_to_avinode" | "rfq_sent" | "quotes_received" | "booked" | "cancelled"
+  // Proposal builder fields
+  isoCommission?: number
+  jetvisionCost?: number
+  proposalNotes?: string
+  selectedQuoteId?: string
+  selectedQuoteAmount?: number
+  totalPrice?: number
+  proposalSentAt?: string
+  clientDecisionAt?: string
 }
 
 export interface Customer {
@@ -65,6 +90,8 @@ export interface Customer {
   name: string
   email: string
   phone: string
+  createdByUserId?: string
+  visibleToIsoIds?: string[]
   createdAt: string
 }
 
@@ -109,53 +136,12 @@ export interface Proposal {
 // ── Seed Data ──────────────────────────────────────────────────────
 
 const USERS: User[] = [
-  { id: "iso-1", name: "Jordan Carter", email: "jordan@jetstream.com", role: "iso" },
-  { id: "iso-2", name: "Alex Rivera", email: "alex@jetstream.com", role: "iso" },
-  { id: "mgr-1", name: "Morgan Hayes", email: "morgan@jetstream.com", role: "manager" },
+  { id: "iso-1", name: "Jordan Carter", email: "jordan@jetvision.com", role: "iso" },
+  { id: "iso-2", name: "Alex Rivera", email: "alex@jetvision.com", role: "iso" },
+  { id: "mgr-1", name: "Morgan Hayes", email: "morgan@jetvision.com", role: "manager" },
 ]
 
-const SEED_NOTIFICATIONS: Notification[] = [
-  {
-    id: "n-4",
-    title: "New Flight Request Awaiting Your Review",
-    body: "Jordan Carter submitted a new flight request for Richard Branson III: Teterboro (KTEB) to Miami Opa-Locka (KOPF) on March 15, 2026 for 6 passengers. Please review the request details, source available flights via your preferred operator network, and generate an RFQ to send to operators. Once an operator responds with pricing, you can accept their quote or negotiate a new price before creating a proposal.",
-    fromUserId: "iso-1",
-    fromUserName: "Jordan Carter",
-    toRole: "manager",
-    createdAt: "2026-02-13T08:15:00Z",
-    read: false,
-  },
-  {
-    id: "n-1",
-    title: "Q1 Revenue Update",
-    body: "We exceeded our Q1 targets by 14%. Great work across all teams. New commission structures take effect next month.",
-    fromUserId: "mgr-1",
-    fromUserName: "Morgan Hayes",
-    toRole: "all",
-    createdAt: "2026-02-12T09:00:00Z",
-    read: false,
-  },
-  {
-    id: "n-2",
-    title: "New Safety Protocols",
-    body: "Updated FAA compliance requirements are now in effect. Please review the new checklist before submitting any flight requests. Training session scheduled for Friday.",
-    fromUserId: "mgr-1",
-    fromUserName: "Morgan Hayes",
-    toRole: "iso",
-    createdAt: "2026-02-10T14:30:00Z",
-    read: false,
-  },
-  {
-    id: "n-3",
-    title: "Required: New Portal Training Available",
-    body: "A new training module on the latest JetStream Portal enhancements is now available. Topics include the updated customer selection workflow, improved proposal builder, and new marketplace filters. All team members must complete this training by February 28th. Access it from the Help section in your profile.",
-    fromUserId: "mgr-1",
-    fromUserName: "Morgan Hayes",
-    toRole: "all",
-    createdAt: "2026-02-08T11:00:00Z",
-    read: true,
-  },
-]
+const SEED_NOTIFICATIONS: Notification[] = []
 
 const SEED_FLIGHT_REQUESTS: FlightRequest[] = [
   {
@@ -168,7 +154,9 @@ const SEED_FLIGHT_REQUESTS: FlightRequest[] = [
     departure: "Teterboro (KTEB)",
     arrival: "Miami Opa-Locka (KOPF)",
     departureDate: "2026-03-15",
+    departureTime: "09:30",
     returnDate: "2026-03-20",
+    returnTime: "16:45",
     passengers: 6,
     specialRequests: "Catering: premium seafood. Ground transport on arrival.",
     status: "pending",
@@ -184,6 +172,7 @@ const SEED_FLIGHT_REQUESTS: FlightRequest[] = [
     departure: "Van Nuys (KVNY)",
     arrival: "Aspen (KASE)",
     departureDate: "2026-03-22",
+    departureTime: "14:15",
     passengers: 4,
     specialRequests: "Ski equipment storage required.",
     status: "pending",
@@ -199,10 +188,15 @@ const SEED_FLIGHT_REQUESTS: FlightRequest[] = [
     departure: "Chicago Midway (KMDW)",
     arrival: "Scottsdale (KSDL)",
     departureDate: "2026-04-01",
+    departureTime: "11:00",
     returnDate: "2026-04-05",
+    returnTime: "13:30",
     passengers: 8,
-    status: "proposal_sent",
+    status: "proposal_ready",
     createdAt: "2026-02-09T15:45:00Z",
+    avinodeBestQuoteAmount: 68500,
+    avinodeBestQuoteCurrency: "USD",
+    avinodeQuoteCount: 1,
   },
 ]
 
@@ -234,6 +228,8 @@ const SEED_CUSTOMERS: Customer[] = [
     name: "Richard Branson III",
     email: "rb3@example.com",
     phone: "+1 (555) 234-5678",
+    createdByUserId: "iso-1",
+    visibleToIsoIds: ["iso-1"],
     createdAt: "2026-01-15T09:00:00Z",
   },
   {
@@ -241,6 +237,8 @@ const SEED_CUSTOMERS: Customer[] = [
     name: "Elena Vasquez",
     email: "elena.v@example.com",
     phone: "+1 (555) 876-5432",
+    createdByUserId: "iso-2",
+    visibleToIsoIds: ["iso-2"],
     createdAt: "2026-01-20T14:30:00Z",
   },
   {
@@ -248,6 +246,8 @@ const SEED_CUSTOMERS: Customer[] = [
     name: "Marcus Chen",
     email: "mchen@example.com",
     phone: "+1 (555) 111-2233",
+    createdByUserId: "iso-1",
+    visibleToIsoIds: ["iso-1"],
     createdAt: "2026-02-01T10:00:00Z",
   },
   {
@@ -255,6 +255,8 @@ const SEED_CUSTOMERS: Customer[] = [
     name: "Sophia Laurent",
     email: "slaurent@example.com",
     phone: "+1 (555) 444-7788",
+    createdByUserId: "iso-2",
+    visibleToIsoIds: ["iso-2"],
     createdAt: "2026-02-05T16:45:00Z",
   },
   {
@@ -262,6 +264,8 @@ const SEED_CUSTOMERS: Customer[] = [
     name: "James Worthington",
     email: "jworthington@example.com",
     phone: "+1 (555) 999-3311",
+    createdByUserId: "iso-1",
+    visibleToIsoIds: ["iso-1"],
     createdAt: "2026-02-10T08:15:00Z",
   },
 ]
@@ -346,11 +350,14 @@ interface StoreContextType {
   notifications: Notification[]
   addNotification: (n: Omit<Notification, "id" | "createdAt" | "read">) => void
   markNotificationRead: (id: string) => void
+  deleteNotification: (id: string) => void
   unreadCount: number
 
   flightRequests: FlightRequest[]
   addFlightRequest: (fr: Omit<FlightRequest, "id" | "createdAt" | "status">) => void
+  refreshFlightRequests: () => Promise<void>
   updateFlightRequestStatus: (id: string, status: FlightRequestStatus) => void
+  updateFlightRequest: (id: string, data: Partial<Omit<FlightRequest, "id" | "createdAt">>) => Promise<FlightRequest>
 
   proposals: Proposal[]
   addProposal: (p: Omit<Proposal, "id" | "createdAt" | "status">) => void
@@ -358,6 +365,8 @@ interface StoreContextType {
 
   customers: Customer[]
   addCustomer: (c: Omit<Customer, "id" | "createdAt">) => Customer
+  updateCustomer: (id: string, data: Partial<Pick<Customer, "name" | "email" | "phone" | "visibleToIsoIds">>) => void
+  deleteCustomer: (id: string) => void
 
   marketplaceJets: MarketplaceJet[]
 
@@ -384,6 +393,13 @@ export interface AvinodeActivityItem {
   timestamp: string
 }
 
+export function isNotificationVisibleToUser(notification: Notification, user: User): boolean {
+  if (notification.toRole === "all") return true
+  if (notification.toRole !== user.role) return false
+  if (notification.toUserId && notification.toUserId !== user.id) return false
+  return true
+}
+
 const StoreContext = createContext<StoreContextType | null>(null)
 
 export function useStore() {
@@ -397,37 +413,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>(SEED_NOTIFICATIONS)
   const [flightRequests, setFlightRequests] = useState<FlightRequest[]>(SEED_FLIGHT_REQUESTS)
   const [proposals, setProposals] = useState<Proposal[]>(SEED_PROPOSALS)
-  const [customers, setCustomers] = useState<Customer[]>(SEED_CUSTOMERS)
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [avinodeConnected, setAvinodeConnected] = useState(false)
-  const [avinodeActivity, setAvinodeActivity] = useState<AvinodeActivityItem[]>([
-    {
-      id: "av-seed-1",
-      type: "search_completed",
-      title: "Aircraft Search Completed",
-      description: "Search for KTEB to KOPF on Mar 15 returned 12 available aircraft via Avinode Marketplace.",
-      flightRequestId: "fr-1",
-      avinodeTripId: "JS26A1",
-      timestamp: "2026-02-11T09:30:00Z",
-    },
-    {
-      id: "av-seed-2",
-      type: "rfq_sent",
-      title: "RFQ Sent to Operators",
-      description: "RFQ sent to 3 operators (NetJets, VistaJet, Flexjet) for Teterboro to Miami Opa-Locka via Avinode.",
-      flightRequestId: "fr-1",
-      avinodeTripId: "JS26A1",
-      timestamp: "2026-02-11T10:15:00Z",
-    },
-    {
-      id: "av-seed-3",
-      type: "quote_received",
-      title: "Quote Received from NetJets",
-      description: "NetJets quoted $68,500 for Gulfstream G650, KTEB to KOPF round trip. Quote valid until Mar 1, 2026.",
-      flightRequestId: "fr-1",
-      avinodeTripId: "JS26A1",
-      timestamp: "2026-02-11T14:45:00Z",
-    },
-  ])
+  const [avinodeActivity, setAvinodeActivity] = useState<AvinodeActivityItem[]>([])
   const [avinodeWebhookEvents, setAvinodeWebhookEvents] = useState<AvinodeWebhookEventType[]>([
     "TripRequestSellerResponse",
     "TripRequestMine",
@@ -459,6 +447,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             setFlightRequests(requestsJson.data)
           }
         }
+
       } catch (error) {
         console.error("Failed to load Supabase-backed data:", error)
       }
@@ -469,6 +458,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!currentUser) {
+      setNotifications([])
+      return
+    }
+
+    let cancelled = false
+    const loadNotifications = async () => {
+      try {
+        const res = await fetch(`/api/notifications?userId=${encodeURIComponent(currentUser.id)}`)
+        if (!res.ok) return
+        const json = await res.json()
+        if (!cancelled && Array.isArray(json?.data)) {
+          setNotifications(json.data)
+        }
+      } catch (error) {
+        console.error("Failed to load notifications:", error)
+      }
+    }
+
+    void loadNotifications()
+    return () => {
+      cancelled = true
+    }
+  }, [currentUser])
 
   useEffect(() => {
     let cancelled = false
@@ -494,37 +509,92 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = useCallback((userId: string) => {
-    const user = USERS.find((u) => u.id === userId)
-    if (user) setCurrentUser(user)
+  // Restore the selected user role across page navigations
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("jv_user_id") : null
+    if (saved) {
+      const user = USERS.find((u) => u.id === saved)
+      if (user) setCurrentUser(user)
+    }
   }, [])
 
-  const logout = useCallback(() => setCurrentUser(null), [])
+  const login = useCallback((userId: string) => {
+    const user = USERS.find((u) => u.id === userId)
+    if (user) {
+      setCurrentUser(user)
+      localStorage.setItem("jv_user_id", userId)
+    }
+  }, [])
+
+  const logout = useCallback(() => {
+    setCurrentUser(null)
+    localStorage.removeItem("jv_user_id")
+  }, [])
 
   const addNotification = useCallback(
     (n: Omit<Notification, "id" | "createdAt" | "read">) => {
+      const optimistic: Notification = {
+        ...n,
+        id: `n-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        read: false,
+      }
+
       setNotifications((prev) => [
-        {
-          ...n,
-          id: `n-${Date.now()}`,
-          createdAt: new Date().toISOString(),
-          read: false,
-        },
+        optimistic,
         ...prev,
       ])
+
+      void fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(n),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const json = await res.json()
+          if (!json?.data) return
+          setNotifications((prev) => prev.map((item) => (item.id === optimistic.id ? json.data : item)))
+        })
+        .catch((error) => {
+          console.error("Failed to persist notification:", error)
+        })
     },
     []
   )
 
   const markNotificationRead = useCallback((id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
-  }, [])
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true, readAt: new Date().toISOString() } : n))
+    )
+
+    void fetch(`/api/notifications/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ read: true, userId: currentUser?.id || null }),
+    }).catch((error) => {
+      console.error("Failed to mark notification as read:", error)
+    })
+  }, [currentUser?.id])
+
+  const deleteNotification = useCallback((id: string) => {
+    const deletedByUserId = currentUser?.id || null
+    setNotifications((prev) => prev.filter((n) => n.id !== id))
+
+    void fetch(`/api/notifications/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deleted: true, deletedByUserId, userId: deletedByUserId }),
+    }).catch((error) => {
+      console.error("Failed to delete notification:", error)
+    })
+  }, [currentUser?.id])
 
   const unreadCount = notifications.filter(
     (n) =>
       !n.read &&
       currentUser &&
-      (n.toRole === "all" || n.toRole === currentUser.role)
+      isNotificationVisibleToUser(n, currentUser)
   ).length
 
   const addFlightRequest = useCallback(
@@ -537,6 +607,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
 
       setFlightRequests((prev) => [optimistic, ...prev])
+
+      // Notify manager of new request
+      addNotification({
+        title: "New Flight Request Submitted",
+        body: `${fr.isoName} submitted a new request for ${fr.clientName}: ${fr.departure} → ${fr.arrival} on ${fr.departureDate} for ${fr.passengers} passenger${fr.passengers === 1 ? "" : "s"}.`,
+        fromUserId: fr.isoId,
+        fromUserName: fr.isoName,
+        toRole: "manager",
+      })
 
       void fetch("/api/flight-requests", {
         method: "POST",
@@ -553,8 +632,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           console.error("Failed to persist flight request:", error)
         })
     },
-    []
+    [addNotification]
   )
+
+  const refreshFlightRequests = useCallback(async () => {
+    const res = await fetch("/api/flight-requests")
+    if (!res.ok) {
+      throw new Error(`Failed to refresh flight requests: HTTP ${res.status}`)
+    }
+
+    const json = await res.json()
+    if (!Array.isArray(json?.data)) return
+
+    const latest = json.data as FlightRequest[]
+    setFlightRequests(latest)
+
+    const syncEligibleStatuses = new Set<FlightRequestStatus>([
+      "under_review",
+      "rfq_submitted",
+      "quote_received",
+      "proposal_ready",
+    ])
+    const syncTargets = latest.filter((fr) => fr.avinodeTripId && syncEligibleStatuses.has(fr.status))
+    if (syncTargets.length === 0) return
+
+    const syncedRows = await Promise.all(
+      syncTargets.map(async (fr) => {
+        try {
+          const syncRes = await fetch(`/api/flight-requests/${fr.id}/sync`, { method: "POST" })
+          if (!syncRes.ok) return null
+          const syncJson = await syncRes.json()
+          return (syncJson?.data || null) as FlightRequest | null
+        } catch {
+          return null
+        }
+      })
+    )
+
+    const syncedById = new Map(
+      syncedRows.filter((item): item is FlightRequest => Boolean(item)).map((item) => [item.id, item])
+    )
+
+    if (syncedById.size > 0) {
+      setFlightRequests((prev) => prev.map((fr) => syncedById.get(fr.id) || fr))
+    }
+  }, [])
 
   const updateFlightRequestStatus = useCallback((id: string, status: FlightRequestStatus) => {
     setFlightRequests((prev) => prev.map((fr) => (fr.id === id ? { ...fr, status } : fr)))
@@ -567,6 +689,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       console.error("Failed to persist flight request status:", error)
     })
   }, [])
+
+  const updateFlightRequest = useCallback(async (id: string, data: Partial<Omit<FlightRequest, "id" | "createdAt">>): Promise<FlightRequest> => {
+    const previous = flightRequests.find((fr) => fr.id === id)
+    const isTransitionToProposalReady =
+      previous &&
+      previous.status !== "proposal_ready" &&
+      data.status === "proposal_ready"
+
+    if (isTransitionToProposalReady) {
+      addNotification({
+        title: "Your Proposal is Ready",
+        body: `Your proposal for ${previous.clientName} (${previous.departure} → ${previous.arrival}) is ready. Please review and send to your client.`,
+        fromUserId: currentUser?.id || "system",
+        fromUserName: currentUser?.name || "System",
+        toRole: "iso",
+        toUserId: previous.isoId,
+      })
+    }
+
+    setFlightRequests((prev) => prev.map((fr) => (fr.id === id ? { ...fr, ...data } : fr)))
+
+    const res = await fetch(`/api/flight-requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) throw new Error(`Failed to update flight request: HTTP ${res.status}`)
+    const json = await res.json()
+    if (json?.data) {
+      setFlightRequests((prev) => prev.map((fr) => (fr.id === id ? json.data : fr)))
+      return json.data
+    }
+    return data as FlightRequest
+  }, [addNotification, currentUser?.id, currentUser?.name, flightRequests])
 
   const addProposal = useCallback(
     (p: Omit<Proposal, "id" | "createdAt" | "status">) => {
@@ -614,6 +770,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     []
   )
+
+  const updateCustomer = useCallback((id: string, data: Partial<Pick<Customer, "name" | "email" | "phone" | "visibleToIsoIds">>) => {
+    setCustomers((prev) => prev.map((c) => (c.id === id ? { ...c, ...data } : c)))
+
+    void fetch(`/api/customers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch((error) => {
+      console.error("Failed to update customer:", error)
+    })
+  }, [])
+
+  const deleteCustomer = useCallback((id: string) => {
+    setCustomers((prev) => prev.filter((c) => c.id !== id))
+
+    void fetch(`/api/customers/${id}`, {
+      method: "DELETE",
+    }).catch((error) => {
+      console.error("Failed to delete customer:", error)
+    })
+  }, [])
 
   const addAvinodeActivity = useCallback(
     (item: Omit<AvinodeActivityItem, "id" | "timestamp">) => {
@@ -671,15 +849,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         notifications,
         addNotification,
         markNotificationRead,
+        deleteNotification,
         unreadCount,
         flightRequests,
         addFlightRequest,
+        refreshFlightRequests,
         updateFlightRequestStatus,
+        updateFlightRequest,
         proposals,
         addProposal,
         updateProposalStatus,
         customers,
         addCustomer,
+        updateCustomer,
+        deleteCustomer,
         marketplaceJets: MARKETPLACE_JETS,
         avinodeConnected,
         avinodeActivity,

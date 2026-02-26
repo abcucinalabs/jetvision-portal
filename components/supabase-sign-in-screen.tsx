@@ -112,7 +112,7 @@ export function SupabaseSignInScreen() {
         </div>
 
         <p className="mt-6 text-center text-xs text-primary-foreground/40">
-          Jetvision Aviation &copy; 2026. All rights reserved.
+          Jetvision Group &copy; 2026. All rights reserved.
         </p>
       </div>
     </div>

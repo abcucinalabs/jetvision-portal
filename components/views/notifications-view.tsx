@@ -1,16 +1,16 @@
 "use client"
 
-import { useStore } from "@/lib/store"
-import { Bell, CheckCheck } from "lucide-react"
+import { isNotificationVisibleToUser, useStore } from "@/lib/store"
+import { Bell, CheckCheck, Trash2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 
 export function NotificationsView() {
-  const { currentUser, notifications, markNotificationRead } = useStore()
+  const { currentUser, notifications, markNotificationRead, deleteNotification } = useStore()
 
   if (!currentUser) return null
 
   const filtered = notifications.filter(
-    (n) => n.toRole === "all" || n.toRole === currentUser.role
+    (n) => isNotificationVisibleToUser(n, currentUser)
   )
 
   return (
@@ -67,15 +67,24 @@ export function NotificationsView() {
                     </div>
                   </div>
                 </div>
-                {!n.read && (
+                <div className="shrink-0 flex items-center gap-2">
+                  {!n.read && (
+                    <button
+                      onClick={() => markNotificationRead(n.id)}
+                      className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    >
+                      <CheckCheck className="h-3.5 w-3.5" />
+                      Mark read
+                    </button>
+                  )}
                   <button
-                    onClick={() => markNotificationRead(n.id)}
-                    className="shrink-0 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    onClick={() => deleteNotification(n.id)}
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                   >
-                    <CheckCheck className="h-3.5 w-3.5" />
-                    Mark read
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
                   </button>
-                )}
+                </div>
               </div>
             </div>
           ))}

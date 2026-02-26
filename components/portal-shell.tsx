@@ -9,13 +9,14 @@ import { SupabaseSignInScreen } from "@/components/supabase-sign-in-screen"
 import { DashboardView } from "@/components/views/dashboard-view"
 import { FlightRequestsView } from "@/components/views/flight-requests-view"
 import { NotificationsView } from "@/components/views/notifications-view"
-import { ProposalsView } from "@/components/views/proposals-view"
 import { MarketplaceView } from "@/components/views/marketplace-view"
 import { SendNotificationView } from "@/components/views/send-notification-view"
-import { SendProposalView } from "@/components/views/send-proposal-view"
-import { RFQOperationsView } from "@/components/views/rfq-operations-view"
-import { WorkflowLogicView } from "@/components/views/workflow-logic-view"
 import { RequestsNewView } from "@/components/views/requests-new-view"
+import { MyClientsView } from "@/components/views/my-clients-view"
+import { ClientsView } from "@/components/views/clients-view"
+import { FinancesView } from "@/components/views/finances-view"
+import { RoleManagementView } from "@/components/views/role-management-view"
+import { SystemAdminView } from "@/components/views/system-admin-view"
 
 type AuthStatus = "loading" | "signed_out" | "signed_in"
 
@@ -77,13 +78,14 @@ export function PortalShell() {
           )}
           {activeView === "requests-new" && <RequestsNewView />}
           {activeView === "flight-requests" && <FlightRequestsView />}
-          {activeView === "rfq-operations" && <RFQOperationsView />}
-          {activeView === "workflow-logic" && <WorkflowLogicView />}
+          {activeView === "my-clients" && currentUser.role === "iso" && <MyClientsView />}
+          {activeView === "clients" && currentUser.role === "manager" && <ClientsView />}
+          {activeView === "finances" && currentUser.role === "manager" && <FinancesView />}
+          {activeView === "role-management" && currentUser.role === "manager" && <RoleManagementView />}
+          {activeView === "system-admin" && currentUser.role === "manager" && <SystemAdminView />}
           {activeView === "notifications" && <NotificationsView />}
-          {activeView === "proposals" && <ProposalsView />}
           {activeView === "marketplace" && <MarketplaceView />}
           {activeView === "send-notification" && <SendNotificationView />}
-          {activeView === "send-proposal" && <SendProposalView />}
         </div>
       </main>
     </div>

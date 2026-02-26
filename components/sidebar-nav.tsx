@@ -6,14 +6,12 @@ import jetvisionLogo from "@/IMG_6289.png"
 import {
   LayoutDashboard,
   Bell,
-  FileText,
-  Send,
-  ShoppingBag,
   LogOut,
   PlaneTakeoff,
-  MessageSquare,
-  GitBranch,
-  ListChecks,
+  Users,
+  HandCoins,
+  Shield,
+  UserCog,
   Menu,
   X,
 } from "lucide-react"
@@ -22,14 +20,15 @@ import { useState } from "react"
 export type PortalView =
   | "dashboard"
   | "flight-requests"
-  | "rfq-operations"
+  | "my-clients"
+  | "clients"
+  | "finances"
+  | "role-management"
+  | "system-admin"
   | "requests-new"
   | "notifications"
-  | "proposals"
   | "marketplace"
-  | "workflow-logic"
   | "send-notification"
-  | "send-proposal"
 
 interface SidebarNavProps {
   activeView: PortalView
@@ -39,19 +38,18 @@ interface SidebarNavProps {
 const ISO_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboard }[] = [
   { label: "Notifications", view: "notifications", icon: Bell },
   { label: "Dashboard", view: "dashboard", icon: LayoutDashboard },
-  { label: "Requests", view: "requests-new", icon: ListChecks },
-  { label: "Proposals", view: "proposals", icon: FileText },
+  { label: "Flight Requests", view: "flight-requests", icon: PlaneTakeoff },
+  { label: "My Clients", view: "my-clients", icon: Users },
 ]
 
 const MANAGER_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboard }[] = [
   { label: "Notifications", view: "notifications", icon: Bell },
   { label: "Dashboard", view: "dashboard", icon: LayoutDashboard },
-  { label: "Requests (New)", view: "requests-new", icon: ListChecks },
   { label: "Flight Requests", view: "flight-requests", icon: PlaneTakeoff },
-  { label: "RFQ Operations", view: "rfq-operations", icon: MessageSquare },
-  { label: "Workflow Logic", view: "workflow-logic", icon: GitBranch },
-  { label: "Send Proposal", view: "send-proposal", icon: Send },
-  { label: "Proposals", view: "proposals", icon: FileText },
+  { label: "Clients", view: "clients", icon: Users },
+  { label: "Finances", view: "finances", icon: HandCoins },
+  { label: "Role Management", view: "role-management", icon: UserCog },
+  { label: "System Admin", view: "system-admin", icon: Shield },
   { label: "Send Notification", view: "send-notification", icon: Bell },
 ]
 

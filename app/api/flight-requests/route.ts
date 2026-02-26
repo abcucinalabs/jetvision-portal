@@ -13,10 +13,12 @@ type FlightRequestRow = {
   departure: string
   arrival: string
   departure_date: string
+  departure_time: string | null
   return_date: string | null
+  return_time: string | null
   passengers: number
   special_requests: string | null
-  status: "pending" | "proposal_sent" | "accepted" | "declined" | "cancelled"
+  status: "pending" | "under_review" | "rfq_submitted" | "quote_received" | "proposal_ready" | "proposal_sent" | "accepted" | "declined" | "cancelled"
   created_at: string
   avinode_trip_id: string | null
   avinode_trip_href: string | null
@@ -30,6 +32,14 @@ type FlightRequestRow = {
   avinode_first_quote_at: string | null
   avinode_last_sync_at: string | null
   avinode_status: "not_sent" | "sent_to_avinode" | "rfq_sent" | "quotes_received" | "booked" | "cancelled" | null
+  iso_commission: number | null
+  jetvision_cost: number | null
+  proposal_notes: string | null
+  selected_quote_id: string | null
+  selected_quote_amount: number | null
+  total_price: number | null
+  proposal_sent_at: string | null
+  client_decision_at: string | null
 }
 
 function toFlightRequest(row: FlightRequestRow) {
@@ -43,7 +53,9 @@ function toFlightRequest(row: FlightRequestRow) {
     departure: row.departure,
     arrival: row.arrival,
     departureDate: row.departure_date,
+    departureTime: row.departure_time || undefined,
     returnDate: row.return_date || undefined,
+    returnTime: row.return_time || undefined,
     passengers: row.passengers,
     specialRequests: row.special_requests || undefined,
     status: row.status,
@@ -60,6 +72,14 @@ function toFlightRequest(row: FlightRequestRow) {
     avinodeFirstQuoteAt: row.avinode_first_quote_at || undefined,
     avinodeLastSyncAt: row.avinode_last_sync_at || undefined,
     avinodeStatus: row.avinode_status || undefined,
+    isoCommission: row.iso_commission ?? undefined,
+    jetvisionCost: row.jetvision_cost ?? undefined,
+    proposalNotes: row.proposal_notes || undefined,
+    selectedQuoteId: row.selected_quote_id || undefined,
+    selectedQuoteAmount: row.selected_quote_amount ?? undefined,
+    totalPrice: row.total_price ?? undefined,
+    proposalSentAt: row.proposal_sent_at || undefined,
+    clientDecisionAt: row.client_decision_at || undefined,
   }
 }
 
@@ -95,7 +115,9 @@ export async function POST(req: NextRequest) {
       departure: body.departure,
       arrival: body.arrival,
       departure_date: body.departureDate,
+      departure_time: body.departureTime || null,
       return_date: body.returnDate || null,
+      return_time: body.returnTime || null,
       passengers: body.passengers,
       special_requests: body.specialRequests || null,
       status: body.status || "pending",

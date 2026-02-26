@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-admin"
 
 export const dynamic = "force-dynamic"
@@ -29,65 +29,37 @@ function isMissingVisibilityColumn(message: string | undefined) {
   return (message || "").toLowerCase().includes("visible_to_iso_ids")
 }
 
-export async function GET() {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = getSupabaseAdmin()
-    const primary = await supabase
-      .from("customers")
-      .select("id, name, email, phone, created_by_user_id, visible_to_iso_ids, created_at")
-      .order("created_at", { ascending: false })
-    let data = (primary.data as CustomerRow[] | null) || null
-    let error = primary.error
-
-    if (error && isMissingVisibilityColumn(error.message)) {
-      const fallback = await supabase
-        .from("customers")
-        .select("id, name, email, phone, created_by_user_id, created_at")
-        .order("created_at", { ascending: false })
-      data = (fallback.data as CustomerRow[] | null) || null
-      error = fallback.error
-    }
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ data: (data || []).map((row) => toCustomer(row as CustomerRow)) })
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
-  }
-}
-
-export async function POST(req: NextRequest) {
-  try {
+    const { id } = await params
     const body = await req.json()
     const supabase = getSupabaseAdmin()
 
-    const payload = {
-      name: body.name,
-      email: body.email,
-      phone: body.phone || null,
-      created_by_user_id: body.createdByUserId || null,
-      visible_to_iso_ids: Array.isArray(body.visibleToIsoIds) ? body.visibleToIsoIds : [],
-    }
+    const updates: Record<string, unknown> = {}
+    if (typeof body.name === "string") updates.name = body.name
+    if (typeof body.email === "string") updates.email = body.email
+    if (typeof body.phone === "string") updates.phone = body.phone || null
+    if (Array.isArray(body.visibleToIsoIds)) updates.visible_to_iso_ids = body.visibleToIsoIds
 
     const primary = await supabase
       .from("customers")
-      .insert(payload)
+      .update(updates)
+      .eq("id", id)
       .select("id, name, email, phone, created_by_user_id, visible_to_iso_ids, created_at")
       .single()
     let data = (primary.data as CustomerRow | null) || null
     let error = primary.error
 
     if (error && isMissingVisibilityColumn(error.message)) {
+      const fallbackUpdates: Record<string, unknown> = {}
+      if (typeof body.name === "string") fallbackUpdates.name = body.name
+      if (typeof body.email === "string") fallbackUpdates.email = body.email
+      if (typeof body.phone === "string") fallbackUpdates.phone = body.phone || null
+
       const fallback = await supabase
         .from("customers")
-        .insert({
-          name: body.name,
-          email: body.email,
-          phone: body.phone || null,
-          created_by_user_id: body.createdByUserId || null,
-        })
+        .update(fallbackUpdates)
+        .eq("id", id)
         .select("id, name, email, phone, created_by_user_id, created_at")
         .single()
       data = (fallback.data as CustomerRow | null) || null
@@ -99,6 +71,26 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ data: toCustomer(data as CustomerRow) })
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
+  }
+}
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const supabase = getSupabaseAdmin()
+
+    const { error } = await supabase
+      .from("customers")
+      .delete()
+      .eq("id", id)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ ok: true })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unknown error" }, { status: 500 })
   }

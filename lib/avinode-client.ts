@@ -1,5 +1,29 @@
 import type { AvinodeTrip, AvinodeRfq } from "@/lib/avinode"
 
+function extractApiError(data: unknown, fallback: string) {
+  if (!data || typeof data !== "object") return fallback
+  const record = data as Record<string, unknown>
+  const details = record.details && typeof record.details === "object"
+    ? (record.details as Record<string, unknown>)
+    : undefined
+  const meta = details?.meta && typeof details.meta === "object"
+    ? (details.meta as Record<string, unknown>)
+    : undefined
+  const metaErrors = Array.isArray(meta?.errors) ? meta?.errors : []
+  const firstMetaError = metaErrors[0]
+  if (firstMetaError && typeof firstMetaError === "object") {
+    const title = (firstMetaError as Record<string, unknown>).title
+    const message = (firstMetaError as Record<string, unknown>).message
+    if (typeof title === "string" && title.trim()) return title
+    if (typeof message === "string" && message.trim()) return message
+  }
+  const error = record.error
+  if (typeof error === "string" && error.trim()) return error
+  const message = record.message
+  if (typeof message === "string" && message.trim()) return message
+  return fallback
+}
+
 /** Create a trip in Avinode via POST /trips.
  *  Builds the exact request body format Avinode expects:
  *  { segments: [{ startAirport: { icao }, endAirport: { icao }, dateTime: { date, time?, departure, local }, paxCount, paxSegment, timeTBD }], sourcing: true }
@@ -109,6 +133,18 @@ export async function getRfq(
   return res.json()
 }
 
+/** Download a quote by ID */
+export async function getQuoteById(quoteId: string): Promise<{ data: Record<string, unknown> }> {
+  const res = await fetch(`/api/avinode/quotes/${quoteId}`)
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Unknown error" }))
+    throw new Error(err.error || `Quote fetch failed: ${res.status}`)
+  }
+
+  return res.json()
+}
+
 /** Cancel a trip */
 export async function cancelTrip(
   tripId: string,
@@ -154,7 +190,7 @@ export async function getTripMessage(messageId: string): Promise<unknown> {
   const res = await fetch(`/api/avinode/tripmsgs/${messageId}`)
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error || `Trip message fetch failed: ${res.status}`)
+    throw new Error(extractApiError(data, `Trip message fetch failed: ${res.status}`))
   }
   return data
 }
@@ -168,7 +204,7 @@ export async function submitTripQuote(messageId: string, payload: Record<string,
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error || `Submit quote failed: ${res.status}`)
+    throw new Error(extractApiError(data, `Submit quote failed: ${res.status}`))
   }
   return data
 }
@@ -182,7 +218,7 @@ export async function declineTripRequest(messageId: string, payload: Record<stri
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error || `Decline failed: ${res.status}`)
+    throw new Error(extractApiError(data, `Decline failed: ${res.status}`))
   }
   return data
 }
@@ -196,7 +232,7 @@ export async function chatTripRequest(messageId: string, payload: Record<string,
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error((data as { error?: string }).error || `Chat send failed: ${res.status}`)
+    throw new Error(extractApiError(data, `Chat send failed: ${res.status}`))
   }
   return data
 }

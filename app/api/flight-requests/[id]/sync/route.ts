@@ -11,10 +11,12 @@ type FlightRequestRow = {
   departure: string
   arrival: string
   departure_date: string
+  departure_time: string | null
   return_date: string | null
+  return_time: string | null
   passengers: number
   special_requests: string | null
-  status: "pending" | "proposal_sent" | "accepted" | "declined" | "cancelled"
+  status: "pending" | "under_review" | "rfq_submitted" | "quote_received" | "proposal_ready" | "proposal_sent" | "accepted" | "declined" | "cancelled"
   created_at: string
   avinode_trip_id: string | null
   avinode_trip_href: string | null
@@ -41,7 +43,9 @@ function toFlightRequest(row: FlightRequestRow) {
     departure: row.departure,
     arrival: row.arrival,
     departureDate: row.departure_date,
+    departureTime: row.departure_time || undefined,
     returnDate: row.return_date || undefined,
+    returnTime: row.return_time || undefined,
     passengers: row.passengers,
     specialRequests: row.special_requests || undefined,
     status: row.status,
