@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useStore } from "@/lib/store"
 import { formatDistanceToNow } from "date-fns"
-import { Activity, Bell, Database, Globe, PlaneTakeoff } from "lucide-react"
+import { Activity, Bell, Bot, Database, Globe, PlaneTakeoff } from "lucide-react"
 
 type HealthStatus = "healthy" | "degraded" | "down"
 
@@ -80,6 +80,7 @@ export function SystemAdminView() {
 
   const avinodeCheck = healthOverview?.checks.find((c) => c.id === "avinode_connectivity")
   const supabaseCheck = healthOverview?.checks.find((c) => c.id === "supabase_connectivity")
+  const geminiCheck = healthOverview?.checks.find((c) => c.id === "gemini_connectivity")
 
   const logs = useMemo<AdminLogItem[]>(() => {
     const RECENT_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -210,6 +211,54 @@ export function SystemAdminView() {
           </span>
           <span className="ml-2 text-xs text-muted-foreground">
             {supabaseCheck?.detail || "Running health check"}
+          </span>
+        </div>
+      </div>
+
+      <div
+        className={`flex items-center gap-3 rounded-xl border px-5 py-3.5 ${
+          geminiCheck?.status === "healthy"
+            ? "border-green-500/20 bg-green-500/5"
+            : geminiCheck?.status === "degraded"
+              ? "border-amber-500/20 bg-amber-500/5"
+              : geminiCheck?.status === "down"
+              ? "border-destructive/20 bg-destructive/5"
+              : "border-border bg-muted/30"
+        }`}
+      >
+        <Bot
+          className={`h-5 w-5 shrink-0 ${
+            geminiCheck?.status === "healthy"
+              ? "text-green-600"
+              : geminiCheck?.status === "degraded"
+                ? "text-amber-600"
+                : geminiCheck?.status === "down"
+                ? "text-destructive"
+                : "text-muted-foreground"
+          }`}
+        />
+        <div className="flex-1">
+          <span
+            className={`text-sm font-semibold ${
+              geminiCheck?.status === "healthy"
+                ? "text-green-700"
+                : geminiCheck?.status === "degraded"
+                  ? "text-amber-700"
+                  : geminiCheck?.status === "down"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+            }`}
+          >
+            {geminiCheck?.status === "healthy"
+              ? "Gemini API Healthy"
+              : geminiCheck?.status === "degraded"
+                ? "Gemini API Degraded"
+                : geminiCheck?.status === "down"
+                ? "Gemini API Unhealthy"
+                : "Checking Gemini API"}
+          </span>
+          <span className="ml-2 text-xs text-muted-foreground">
+            {geminiCheck?.detail || "Running health check"}
           </span>
         </div>
       </div>

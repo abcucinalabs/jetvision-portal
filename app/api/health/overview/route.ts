@@ -193,6 +193,70 @@ async function checkAvinodeFreshness() {
   return { status: "healthy" as const, detail: `Last Avinode sync ${ageMinutes} min ago` }
 }
 
+async function checkGeminiConfig() {
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim()
+  const model = (process.env.GEMINI_MODEL || "").trim() || "gemini-2.5-flash"
+
+  if (!apiKey) {
+    return {
+      status: "degraded" as const,
+      detail: "Missing GEMINI_API_KEY",
+    }
+  }
+
+  return { status: "healthy" as const, detail: `Gemini configured (${model})` }
+}
+
+async function checkGeminiConnectivity() {
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim()
+  const model = (process.env.GEMINI_MODEL || "").trim() || "gemini-2.5-flash"
+
+  if (!apiKey) {
+    return {
+      status: "degraded" as const,
+      detail: "Connectivity check skipped: GEMINI_API_KEY missing",
+    }
+  }
+
+  const { signal, clear } = timeoutSignal(8000)
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal,
+        cache: "no-store",
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: "Reply with OK." }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 8,
+          },
+        }),
+      }
+    )
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "")
+      const status: HealthStatus = res.status >= 500 ? "down" : "degraded"
+      return {
+        status,
+        detail: `Gemini request failed (${res.status})${body ? `: ${body.slice(0, 120)}` : ""}`,
+      }
+    }
+
+    return { status: "healthy" as const, detail: `Gemini reachable (${model})` }
+  } finally {
+    clear()
+  }
+}
+
 export const dynamic = "force-dynamic"
 
 export async function GET() {
@@ -203,6 +267,8 @@ export async function GET() {
     runCheck("avinode_config", "Avinode Configuration", checkAvinodeConfig),
     runCheck("avinode_connectivity", "Avinode Connectivity", checkAvinodeConnectivity),
     runCheck("avinode_freshness", "Avinode Sync Freshness", checkAvinodeFreshness),
+    runCheck("gemini_config", "Gemini Configuration", checkGeminiConfig),
+    runCheck("gemini_connectivity", "Gemini Connectivity", checkGeminiConnectivity),
   ])
 
   const overall = evaluateOverall(checks)

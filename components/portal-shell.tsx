@@ -17,6 +17,7 @@ import { ClientsView } from "@/components/views/clients-view"
 import { FinancesView } from "@/components/views/finances-view"
 import { RoleManagementView } from "@/components/views/role-management-view"
 import { SystemAdminView } from "@/components/views/system-admin-view"
+import { FloatingAiAssistant } from "@/components/floating-ai-assistant"
 
 type AuthStatus = "loading" | "signed_out" | "signed_in"
 
@@ -88,6 +89,7 @@ export function PortalShell() {
           {activeView === "send-notification" && <SendNotificationView />}
         </div>
       </main>
+      <FloatingAiAssistant />
     </div>
   )
 }
