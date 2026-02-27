@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useStore, type Customer } from "@/lib/store"
 import { searchAirports } from "@/lib/avinode-client"
@@ -12,9 +12,9 @@ import {
   Search,
   UserPlus,
   ChevronDown,
-  Loader2,
   RefreshCw,
 } from "lucide-react"
+import { FlightRequestDataTable } from "@/components/flight-request-data-table"
 
 export function FlightRequestsView() {
   const {
@@ -24,21 +24,6 @@ export function FlightRequestsView() {
     refreshFlightRequests,
   } = useStore()
   const [showForm, setShowForm] = useState(false)
-  const [sortConfig, setSortConfig] = useState<{
-    key: "clientName" | "isoName" | "departure" | "arrival" | "departureDate" | "passengers" | "status"
-    direction: "asc" | "desc"
-  }>({
-    key: "departureDate",
-    direction: "asc",
-  })
-  const [tableFilters, setTableFilters] = useState({
-    clientName: "",
-    isoName: "",
-    departure: "",
-    arrival: "",
-    departureDate: "",
-    status: "",
-  })
   const [refreshing, setRefreshing] = useState(false)
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null)
   const refreshInFlightRef = useRef(false)
@@ -53,48 +38,6 @@ export function FlightRequestsView() {
   const requests = isManager
     ? flightRequests
     : flightRequests.filter((fr) => fr.isoId === currentUser.id)
-
-  const tableRequests = useMemo(() => {
-    const normalized = {
-      clientName: tableFilters.clientName.trim().toLowerCase(),
-      isoName: tableFilters.isoName.trim().toLowerCase(),
-      departure: tableFilters.departure.trim().toLowerCase(),
-      arrival: tableFilters.arrival.trim().toLowerCase(),
-      departureDate: tableFilters.departureDate.trim(),
-      status: tableFilters.status.trim().toLowerCase(),
-    }
-
-    const filtered = requests.filter((fr) => {
-      if (normalized.clientName && !fr.clientName.toLowerCase().includes(normalized.clientName)) return false
-      if (normalized.isoName && !fr.isoName.toLowerCase().includes(normalized.isoName)) return false
-      if (normalized.departure && !fr.departure.toLowerCase().includes(normalized.departure)) return false
-      if (normalized.arrival && !fr.arrival.toLowerCase().includes(normalized.arrival)) return false
-      if (normalized.departureDate && !fr.departureDate.includes(normalized.departureDate)) return false
-      if (normalized.status && fr.status.toLowerCase() !== normalized.status) return false
-      return true
-    })
-
-    return [...filtered].sort((a, b) => {
-      const dir = sortConfig.direction === "asc" ? 1 : -1
-      const valueA = a[sortConfig.key]
-      const valueB = b[sortConfig.key]
-
-      if (typeof valueA === "number" && typeof valueB === "number") {
-        return (valueA - valueB) * dir
-      }
-
-      return String(valueA).localeCompare(String(valueB)) * dir
-    })
-  }, [requests, sortConfig, tableFilters])
-
-  const handleSort = (key: "clientName" | "isoName" | "departure" | "arrival" | "departureDate" | "passengers" | "status") => {
-    setSortConfig((prev) => {
-      if (prev.key === key) {
-        return { key, direction: prev.direction === "asc" ? "desc" : "asc" }
-      }
-      return { key, direction: "asc" }
-    })
-  }
 
   const performRefresh = useCallback(async () => {
     if (refreshInFlightRef.current) return
@@ -199,122 +142,12 @@ export function FlightRequestsView() {
               )}
             </div>
           ) : (
-            <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-                <input
-                  value={tableFilters.clientName}
-                  onChange={(e) => setTableFilters((prev) => ({ ...prev, clientName: e.target.value }))}
-                  placeholder="Filter client"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                {isManager && (
-                  <input
-                    value={tableFilters.isoName}
-                    onChange={(e) => setTableFilters((prev) => ({ ...prev, isoName: e.target.value }))}
-                    placeholder="Filter ISO"
-                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                )}
-                <input
-                  value={tableFilters.departure}
-                  onChange={(e) => setTableFilters((prev) => ({ ...prev, departure: e.target.value }))}
-                  placeholder="Filter departure"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <input
-                  value={tableFilters.arrival}
-                  onChange={(e) => setTableFilters((prev) => ({ ...prev, arrival: e.target.value }))}
-                  placeholder="Filter arrival"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <input
-                  value={tableFilters.departureDate}
-                  onChange={(e) => setTableFilters((prev) => ({ ...prev, departureDate: e.target.value }))}
-                  placeholder="Filter date (YYYY-MM-DD)"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <select
-                  value={tableFilters.status}
-                  onChange={(e) => setTableFilters((prev) => ({ ...prev, status: e.target.value }))}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="">All statuses</option>
-                  <option value="pending">Pending</option>
-                  <option value="under_review">Under Review</option>
-                  <option value="rfq_submitted">RFQ Submitted</option>
-                  <option value="quote_received">Quote Received</option>
-                  <option value="proposal_ready">Proposal Ready</option>
-                  <option value="proposal_sent">Proposal Sent</option>
-                  <option value="accepted">Accepted</option>
-                  <option value="declined">Declined</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="px-3 py-2 text-left">
-                        <button type="button" onClick={() => handleSort("clientName")} className="font-semibold text-card-foreground hover:underline">
-                          Client {sortConfig.key === "clientName" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                        </button>
-                      </th>
-                      {isManager && (
-                        <th className="px-3 py-2 text-left">
-                          <button type="button" onClick={() => handleSort("isoName")} className="font-semibold text-card-foreground hover:underline">
-                            ISO {sortConfig.key === "isoName" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                          </button>
-                        </th>
-                      )}
-                      <th className="px-3 py-2 text-left">
-                        <button type="button" onClick={() => handleSort("departure")} className="font-semibold text-card-foreground hover:underline">
-                          Route {sortConfig.key === "departure" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-left">
-                        <button type="button" onClick={() => handleSort("departureDate")} className="font-semibold text-card-foreground hover:underline">
-                          Date {sortConfig.key === "departureDate" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-left">
-                        <button type="button" onClick={() => handleSort("passengers")} className="font-semibold text-card-foreground hover:underline">
-                          Pax {sortConfig.key === "passengers" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-left">
-                        <button type="button" onClick={() => handleSort("status")} className="font-semibold text-card-foreground hover:underline">
-                          Status {sortConfig.key === "status" ? (sortConfig.direction === "asc" ? "↑" : "↓") : ""}
-                        </button>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tableRequests.length === 0 ? (
-                      <tr>
-                        <td colSpan={isManager ? 6 : 5} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                          No matching flight requests for current filters.
-                        </td>
-                      </tr>
-                    ) : (
-                      tableRequests.map((fr) => (
-                        <tr
-                          key={fr.id}
-                          onClick={() => router.push(`/requests/${fr.id}`)}
-                          className="cursor-pointer border-b border-border/60 last:border-b-0 hover:bg-muted/40 transition-colors"
-                        >
-                          <td className="px-3 py-2.5 font-medium text-card-foreground">{fr.clientName}</td>
-                          {isManager && <td className="px-3 py-2.5 text-muted-foreground">{fr.isoName}</td>}
-                          <td className="px-3 py-2.5 text-muted-foreground">{fr.departure} → {fr.arrival}</td>
-                          <td className="px-3 py-2.5 text-muted-foreground">{fr.departureDate}</td>
-                          <td className="px-3 py-2.5 text-muted-foreground">{fr.passengers}</td>
-                          <td className="px-3 py-2.5"><StatusBadge status={fr.status} /></td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+            <div className="rounded-xl border border-border bg-card p-4">
+              <FlightRequestDataTable
+                data={requests}
+                isManager={isManager}
+                onRowClick={(fr) => router.push(`/requests/${fr.id}`)}
+              />
             </div>
           )}
         </>
@@ -323,25 +156,6 @@ export function FlightRequestsView() {
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { bg: string; text: string; label: string }> = {
-    pending: { bg: "bg-accent/10", text: "text-accent", label: "Pending" },
-    under_review: { bg: "bg-blue-500/10", text: "text-blue-600", label: "Under Review" },
-    rfq_submitted: { bg: "bg-violet-500/10", text: "text-violet-600", label: "RFQ Submitted" },
-    quote_received: { bg: "bg-amber-500/10", text: "text-amber-600", label: "Quote Received" },
-    proposal_ready: { bg: "bg-primary/10", text: "text-primary", label: "Proposal Ready" },
-    proposal_sent: { bg: "bg-primary/10", text: "text-primary", label: "Proposal Sent" },
-    accepted: { bg: "bg-green-500/10", text: "text-green-600", label: "Accepted" },
-    declined: { bg: "bg-destructive/10", text: "text-destructive", label: "Declined" },
-    cancelled: { bg: "bg-destructive/10", text: "text-destructive", label: "Cancelled" },
-  }
-  const c = config[status] || config.pending
-  return (
-    <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${c.bg} ${c.text}`}>
-      {c.label}
-    </span>
-  )
-}
 
 export interface FormData {
   clientName: string
