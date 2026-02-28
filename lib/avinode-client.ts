@@ -133,6 +133,18 @@ export async function getRfq(
   return res.json()
 }
 
+/** Download a trip by ID */
+export async function getTripById(tripId: string): Promise<{ data: Record<string, unknown> }> {
+  const res = await fetch(`/api/avinode/trips/${tripId}`)
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Unknown error" }))
+    throw new Error(err.error || `Trip fetch failed: ${res.status}`)
+  }
+
+  return res.json()
+}
+
 /** Download a quote by ID */
 export async function getQuoteById(quoteId: string): Promise<{ data: Record<string, unknown> }> {
   const res = await fetch(`/api/avinode/quotes/${quoteId}`)
