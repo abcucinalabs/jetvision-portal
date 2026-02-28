@@ -178,34 +178,31 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
 
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
-    case "pending":
-      return (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10">
-          <Clock className="h-4 w-4 text-accent" />
-        </div>
-      )
-    case "proposal_sent":
-      return (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <PlaneTakeoff className="h-4 w-4 text-primary" />
-        </div>
-      )
     case "accepted":
       return (
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success/10">
           <CheckCircle2 className="h-4 w-4 text-success" />
         </div>
       )
+    case "declined":
     case "cancelled":
       return (
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-destructive/10">
           <AlertCircle className="h-4 w-4 text-destructive" />
         </div>
       )
-    default:
+    case "proposal_ready":
+    case "proposal_sent":
       return (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-destructive/10">
-          <AlertCircle className="h-4 w-4 text-destructive" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+          <PlaneTakeoff className="h-4 w-4 text-primary" />
+        </div>
+      )
+    default:
+      // pending, under_review, rfq_submitted, quote_received
+      return (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10">
+          <Clock className="h-4 w-4 text-accent" />
         </div>
       )
   }
@@ -214,12 +211,16 @@ function StatusIcon({ status }: { status: string }) {
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
     pending: { bg: "bg-accent/10", text: "text-accent", label: "Pending" },
+    under_review: { bg: "bg-blue-500/10", text: "text-blue-600", label: "Under Review" },
+    rfq_submitted: { bg: "bg-violet-500/10", text: "text-violet-600", label: "RFQ Submitted" },
+    quote_received: { bg: "bg-amber-500/10", text: "text-amber-600", label: "Quote Received" },
+    proposal_ready: { bg: "bg-primary/10", text: "text-primary", label: "Proposal Ready" },
     proposal_sent: { bg: "bg-primary/10", text: "text-primary", label: "Proposal Sent" },
     accepted: { bg: "bg-success/10", text: "text-success", label: "Accepted" },
     declined: { bg: "bg-destructive/10", text: "text-destructive", label: "Declined" },
     cancelled: { bg: "bg-destructive/10", text: "text-destructive", label: "Cancelled" },
   }
-  const c = config[status] || config.pending
+  const c = config[status] ?? config.pending
   return (
     <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${c.bg} ${c.text}`}>
       {c.label}

@@ -133,141 +133,12 @@ export interface Proposal {
   avinodeOperatorResponse?: "quoted" | "declined" | "pending"
 }
 
-// ── Seed Data ──────────────────────────────────────────────────────
+// ── Static Data ─────────────────────────────────────────────────────
 
 const USERS: User[] = [
   { id: "iso-1", name: "Jordan Carter", email: "jordan@jetvision.com", role: "iso" },
   { id: "iso-2", name: "Alex Rivera", email: "alex@jetvision.com", role: "iso" },
   { id: "mgr-1", name: "Morgan Hayes", email: "morgan@jetvision.com", role: "manager" },
-]
-
-const SEED_NOTIFICATIONS: Notification[] = []
-
-const SEED_FLIGHT_REQUESTS: FlightRequest[] = [
-  {
-    id: "fr-1",
-    isoId: "iso-1",
-    isoName: "Jordan Carter",
-    clientName: "Richard Branson III",
-    clientEmail: "rb3@example.com",
-    clientPhone: "+1 (555) 234-5678",
-    departure: "Teterboro (KTEB)",
-    arrival: "Miami Opa-Locka (KOPF)",
-    departureDate: "2026-03-15",
-    departureTime: "09:30",
-    returnDate: "2026-03-20",
-    returnTime: "16:45",
-    passengers: 6,
-    specialRequests: "Catering: premium seafood. Ground transport on arrival.",
-    status: "pending",
-    createdAt: "2026-02-11T08:00:00Z",
-  },
-  {
-    id: "fr-2",
-    isoId: "iso-2",
-    isoName: "Alex Rivera",
-    clientName: "Elena Vasquez",
-    clientEmail: "elena.v@example.com",
-    clientPhone: "+1 (555) 876-5432",
-    departure: "Van Nuys (KVNY)",
-    arrival: "Aspen (KASE)",
-    departureDate: "2026-03-22",
-    departureTime: "14:15",
-    passengers: 4,
-    specialRequests: "Ski equipment storage required.",
-    status: "pending",
-    createdAt: "2026-02-12T10:30:00Z",
-  },
-  {
-    id: "fr-3",
-    isoId: "iso-1",
-    isoName: "Jordan Carter",
-    clientName: "Marcus Chen",
-    clientEmail: "mchen@example.com",
-    clientPhone: "+1 (555) 111-2233",
-    departure: "Chicago Midway (KMDW)",
-    arrival: "Scottsdale (KSDL)",
-    departureDate: "2026-04-01",
-    departureTime: "11:00",
-    returnDate: "2026-04-05",
-    returnTime: "13:30",
-    passengers: 8,
-    status: "proposal_ready",
-    createdAt: "2026-02-09T15:45:00Z",
-    avinodeBestQuoteAmount: 68500,
-    avinodeBestQuoteCurrency: "USD",
-    avinodeQuoteCount: 1,
-  },
-]
-
-const SEED_PROPOSALS: Proposal[] = [
-  {
-    id: "p-1",
-    flightRequestId: "fr-3",
-    isoId: "iso-1",
-    isoName: "Jordan Carter",
-    clientName: "Marcus Chen",
-    aircraft: "Gulfstream G650",
-    operator: "NetJets",
-    departure: "Chicago Midway (KMDW)",
-    arrival: "Scottsdale (KSDL)",
-    departureDate: "2026-04-01",
-    returnDate: "2026-04-05",
-    price: 68500,
-    isoCommissionPct: 10,
-    jetstreamCostPct: 15,
-    notes: "Round trip pricing. Includes ground transportation at both airports.",
-    status: "pending",
-    createdAt: "2026-02-10T12:00:00Z",
-  },
-]
-
-const SEED_CUSTOMERS: Customer[] = [
-  {
-    id: "cust-1",
-    name: "Richard Branson III",
-    email: "rb3@example.com",
-    phone: "+1 (555) 234-5678",
-    createdByUserId: "iso-1",
-    visibleToIsoIds: ["iso-1"],
-    createdAt: "2026-01-15T09:00:00Z",
-  },
-  {
-    id: "cust-2",
-    name: "Elena Vasquez",
-    email: "elena.v@example.com",
-    phone: "+1 (555) 876-5432",
-    createdByUserId: "iso-2",
-    visibleToIsoIds: ["iso-2"],
-    createdAt: "2026-01-20T14:30:00Z",
-  },
-  {
-    id: "cust-3",
-    name: "Marcus Chen",
-    email: "mchen@example.com",
-    phone: "+1 (555) 111-2233",
-    createdByUserId: "iso-1",
-    visibleToIsoIds: ["iso-1"],
-    createdAt: "2026-02-01T10:00:00Z",
-  },
-  {
-    id: "cust-4",
-    name: "Sophia Laurent",
-    email: "slaurent@example.com",
-    phone: "+1 (555) 444-7788",
-    createdByUserId: "iso-2",
-    visibleToIsoIds: ["iso-2"],
-    createdAt: "2026-02-05T16:45:00Z",
-  },
-  {
-    id: "cust-5",
-    name: "James Worthington",
-    email: "jworthington@example.com",
-    phone: "+1 (555) 999-3311",
-    createdByUserId: "iso-1",
-    visibleToIsoIds: ["iso-1"],
-    createdAt: "2026-02-10T08:15:00Z",
-  },
 ]
 
 const MARKETPLACE_JETS: MarketplaceJet[] = [
@@ -410,9 +281,9 @@ export function useStore() {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [notifications, setNotifications] = useState<Notification[]>(SEED_NOTIFICATIONS)
-  const [flightRequests, setFlightRequests] = useState<FlightRequest[]>(SEED_FLIGHT_REQUESTS)
-  const [proposals, setProposals] = useState<Proposal[]>(SEED_PROPOSALS)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [flightRequests, setFlightRequests] = useState<FlightRequest[]>([])
+  const [proposals, setProposals] = useState<Proposal[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [avinodeConnected, setAvinodeConnected] = useState(false)
   const [avinodeActivity, setAvinodeActivity] = useState<AvinodeActivityItem[]>([])
@@ -551,8 +422,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify(n),
       })
         .then(async (res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
           const json = await res.json()
+          if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`)
           if (!json?.data) return
           setNotifications((prev) => prev.map((item) => (item.id === optimistic.id ? json.data : item)))
         })

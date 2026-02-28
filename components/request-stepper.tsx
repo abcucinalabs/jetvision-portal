@@ -3,27 +3,26 @@
 import type { FlightRequestStatus, UserRole } from "@/lib/store"
 
 const STEPS: { label: string; statusIndex: number }[] = [
-  { label: "Submitted",   statusIndex: 0 },
+  { label: "Submitted",    statusIndex: 0 },
   { label: "Under Review", statusIndex: 1 },
-  { label: "RFQ",         statusIndex: 2 },
-  { label: "Quote",       statusIndex: 3 },
-  { label: "Proposal",    statusIndex: 4 },
-  { label: "Sent",        statusIndex: 5 },
-  { label: "Decision",    statusIndex: 6 },
+  { label: "RFQ & Quote",  statusIndex: 2 },
+  { label: "Proposal",     statusIndex: 3 },
+  { label: "Sent",         statusIndex: 4 },
+  { label: "Decision",     statusIndex: 5 },
 ]
 
 const STATUS_ORDER: FlightRequestStatus[] = [
   "pending",
   "under_review",
   "rfq_submitted",
-  "quote_received",
   "proposal_ready",
   "proposal_sent",
   "accepted",
 ]
 
 function getStepIndex(status: FlightRequestStatus): number {
-  if (status === "declined" || status === "cancelled") return 6
+  if (status === "declined" || status === "cancelled") return 5
+  if (status === "quote_received") return 2
   const idx = STATUS_ORDER.indexOf(status)
   return idx === -1 ? 0 : idx
 }
@@ -67,7 +66,7 @@ export function RequestStepper({
                 aria-label={`View ${step.label} step`}
                 className={`
                   flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all
-                  ${isCompleted || (isActive && isFinal && i === 6)
+                  ${isCompleted || (isActive && isFinal && i === 5)
                     ? "border-emerald-500 bg-emerald-500"
                     : isActive
                     ? "border-emerald-400 bg-emerald-400"
@@ -77,7 +76,7 @@ export function RequestStepper({
                   ${isSelectable && onStepSelect ? "cursor-pointer" : "cursor-default"}
                 `}
               >
-                {isCompleted || (isActive && isFinal && i === 6) ? (
+                {isCompleted || (isActive && isFinal && i === 5) ? (
                   <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>

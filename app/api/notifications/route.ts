@@ -79,8 +79,6 @@ export async function POST(req: NextRequest) {
       from_user_name: body.fromUserName,
       to_role: body.toRole,
       to_user_id: body.toUserId || null,
-      read_by_user_ids: [],
-      deleted_by_user_ids: [],
     }
 
     const { data, error } = await supabase

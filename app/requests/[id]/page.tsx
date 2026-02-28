@@ -12,7 +12,6 @@ import { RequestStepper, getStepIndex } from "@/components/request-stepper"
 import { Step1Submitted } from "@/components/steps/step-1-submitted"
 import { Step2Review } from "@/components/steps/step-2-review"
 import { Step3Rfq } from "@/components/steps/step-3-rfq"
-import { Step4Quote } from "@/components/steps/step-4-quote"
 import { Step5Proposal } from "@/components/steps/step-5-proposal"
 import { Step6Send } from "@/components/steps/step-6-send"
 import { Step7Decision } from "@/components/steps/step-7-decision"
@@ -171,11 +170,18 @@ function RequestDetailContent({ requestId }: { requestId: string }) {
   const stepIndex = selectedStepIndex
   const canOpenDecisionStep =
     request.status === "proposal_sent" && currentUser.role === "iso"
+  // Manager can navigate to Proposal step (3) once a quote is confirmed
+  const canBuildProposal =
+    request.status === "quote_received" && currentUser.role === "manager"
   const maxSelectableStepIndex = canOpenDecisionStep
-    ? Math.min(activeStepIndex + 1, 6)
+    ? Math.min(activeStepIndex + 1, 5)
+    : canBuildProposal
+    ? 3
     : activeStepIndex
   const canInteractWithViewedStep =
-    stepIndex === activeStepIndex || (canOpenDecisionStep && stepIndex === 6)
+    stepIndex === activeStepIndex ||
+    (canOpenDecisionStep && stepIndex === 5) ||
+    (canBuildProposal && stepIndex === 3)
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 md:px-8 md:py-8 space-y-6">
@@ -221,23 +227,21 @@ function RequestDetailContent({ requestId }: { requestId: string }) {
             <Step2Review request={request} currentUser={currentUser} onUpdate={handleUpdate} />
           )}
           {stepIndex === 2 && (
-            <Step3Rfq request={request} currentUser={currentUser} onUpdate={handleUpdate} onSync={handleSync} />
-          )}
-          {stepIndex === 3 && (
-            <Step4Quote
+            <Step3Rfq
               request={request}
               currentUser={currentUser}
               onUpdate={handleUpdate}
               onSync={handleSync}
+              onNavigateToProposal={() => setSelectedStepIndex(3)}
             />
           )}
-          {stepIndex === 4 && (
+          {stepIndex === 3 && (
             <Step5Proposal request={request} currentUser={currentUser} onUpdate={handleUpdate} />
           )}
-          {stepIndex === 5 && (
+          {stepIndex === 4 && (
             <Step6Send request={request} currentUser={currentUser} />
           )}
-          {stepIndex === 6 && (
+          {stepIndex === 5 && (
             <Step7Decision request={request} currentUser={currentUser} onUpdate={handleUpdate} />
           )}
         </div>

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /Users/a/Desktop/jetvision-portal/.env*)"
+    ]
+  }
+}
