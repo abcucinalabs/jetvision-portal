@@ -57,7 +57,9 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }>
 function StatusBadge({ status }: { status: string }) {
   const c = STATUS_CONFIG[status] ?? STATUS_CONFIG["pending"]
   return (
-    <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${c.bg} ${c.text}`}>
+    <span
+      className={`inline-flex whitespace-nowrap rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${c.bg} ${c.text}`}
+    >
       {c.label}
     </span>
   )

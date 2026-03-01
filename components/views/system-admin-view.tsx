@@ -156,9 +156,9 @@ export function SystemAdminView() {
             }`}
           >
             {avinodeCheck?.status === "healthy"
-              ? "Avinode Marketplace Connected"
+              ? "Avinode Connected"
               : avinodeCheck?.status === "degraded"
-                ? "Avinode Marketplace Degraded"
+                ? "Avinode Degraded"
                 : "Avinode Not Connected"}
           </span>
           <span className="ml-2 text-xs text-muted-foreground">

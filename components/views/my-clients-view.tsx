@@ -1,7 +1,13 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Trash2, UserPlus, Users } from "lucide-react"
+import { Check, MoreHorizontal, Pencil, Trash2, UserPlus, Users, X } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useStore } from "@/lib/store"
 
 function formatPhoneNumber(value: string) {
@@ -18,10 +24,14 @@ function formatPhoneNumber(value: string) {
 }
 
 export function MyClientsView() {
-  const { currentUser, customers, addCustomer, deleteCustomer } = useStore()
+  const { currentUser, customers, addCustomer, updateCustomer, deleteCustomer } = useStore()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
+  const [editingClientId, setEditingClientId] = useState<string | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editEmail, setEditEmail] = useState("")
+  const [editPhone, setEditPhone] = useState("")
 
   if (!currentUser || currentUser.role !== "iso") return null
 
@@ -44,6 +54,32 @@ export function MyClientsView() {
     setName("")
     setEmail("")
     setPhone("")
+  }
+
+  const startEditing = (clientId: string, currentName: string, currentEmail: string, currentPhone: string) => {
+    setEditingClientId(clientId)
+    setEditName(currentName)
+    setEditEmail(currentEmail)
+    setEditPhone(currentPhone)
+  }
+
+  const cancelEditing = () => {
+    setEditingClientId(null)
+    setEditName("")
+    setEditEmail("")
+    setEditPhone("")
+  }
+
+  const saveEditing = () => {
+    if (!editingClientId || !editName.trim() || !editEmail.trim()) return
+
+    updateCustomer(editingClientId, {
+      name: editName.trim(),
+      email: editEmail.trim(),
+      phone: editPhone.trim(),
+    })
+
+    cancelEditing()
   }
 
   return (
@@ -95,25 +131,104 @@ export function MyClientsView() {
       ) : (
         <div className="rounded-xl border border-border bg-card">
           <div className="divide-y divide-border">
-            {myClients.map((client) => (
-              <div key={client.id} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <div className="text-sm font-semibold text-foreground">{client.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {client.email}
-                    {client.phone ? ` · ${client.phone}` : ""}
+            {myClients.map((client) => {
+              const isEditing = editingClientId === client.id
+              return (
+                <div key={client.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <div className="flex-1">
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          placeholder="Client name"
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="email"
+                          value={editEmail}
+                          onChange={(e) => setEditEmail(e.target.value)}
+                          placeholder="Client email"
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                        />
+                        <input
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(formatPhoneNumber(e.target.value))}
+                          placeholder="Client phone"
+                          inputMode="tel"
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-sm font-semibold text-foreground">{client.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {client.email}
+                          {client.phone ? ` · ${client.phone}` : ""}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isEditing ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={saveEditing}
+                          disabled={!editName.trim() || !editEmail.trim()}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditing}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            aria-label="Open client actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-36">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              startEditing(
+                                client.id,
+                                client.name,
+                                client.email,
+                                client.phone || ""
+                              )
+                            }
+                          >
+                            <Pencil className="mr-2 h-3.5 w-3.5" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => deleteCustomer(client.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => deleteCustomer(client.id)}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

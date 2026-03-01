@@ -8,6 +8,7 @@ import {
 // ── Types ──────────────────────────────────────────────────────────
 
 export type UserRole = "iso" | "manager"
+export type OnboardingStatus = "not_started" | "in_progress" | "complete"
 
 export interface User {
   id: string
@@ -15,6 +16,10 @@ export interface User {
   email: string
   role: UserRole
   avatar?: string
+  invitedByUserId?: string
+  createdAt?: string
+  onboardingStatus?: OnboardingStatus
+  trainingCompletedAt?: string
 }
 
 export interface Notification {
@@ -135,10 +140,34 @@ export interface Proposal {
 
 // ── Static Data ─────────────────────────────────────────────────────
 
-const USERS: User[] = [
-  { id: "iso-1", name: "Jordan Carter", email: "jordan@jetvision.com", role: "iso" },
-  { id: "iso-2", name: "Alex Rivera", email: "alex@jetvision.com", role: "iso" },
-  { id: "mgr-1", name: "Morgan Hayes", email: "morgan@jetvision.com", role: "manager" },
+const INITIAL_USERS: User[] = [
+  {
+    id: "iso-1",
+    name: "Jordan Carter",
+    email: "jordan@jetvision.com",
+    role: "iso",
+    onboardingStatus: "complete",
+    trainingCompletedAt: "2026-01-15T09:00:00.000Z",
+    createdAt: "2026-01-10T09:00:00.000Z",
+  },
+  {
+    id: "iso-2",
+    name: "Alex Rivera",
+    email: "alex@jetvision.com",
+    role: "iso",
+    onboardingStatus: "complete",
+    trainingCompletedAt: "2026-01-18T09:00:00.000Z",
+    createdAt: "2026-01-12T09:00:00.000Z",
+  },
+  {
+    id: "mgr-1",
+    name: "Morgan Hayes",
+    email: "morgan@jetvision.com",
+    role: "manager",
+    onboardingStatus: "complete",
+    trainingCompletedAt: "2026-01-08T09:00:00.000Z",
+    createdAt: "2026-01-05T09:00:00.000Z",
+  },
 ]
 
 const MARKETPLACE_JETS: MarketplaceJet[] = [
@@ -217,6 +246,11 @@ interface StoreContextType {
   users: User[]
   login: (userId: string) => void
   logout: () => void
+  addUser: (user: Omit<User, "id" | "createdAt" | "onboardingStatus" | "trainingCompletedAt">) => User
+  updateUser: (userId: string, data: Partial<Pick<User, "name" | "email" | "role">>) => void
+  deleteUser: (userId: string) => void
+  beginUserOnboarding: (userId: string) => void
+  completeUserOnboarding: (userId: string) => void
 
   notifications: Notification[]
   addNotification: (n: Omit<Notification, "id" | "createdAt" | "read">) => void
@@ -281,6 +315,7 @@ export function useStore() {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [users, setUsers] = useState<User[]>(INITIAL_USERS)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [flightRequests, setFlightRequests] = useState<FlightRequest[]>([])
   const [proposals, setProposals] = useState<Proposal[]>([])
@@ -382,24 +417,107 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // Restore the selected user role across page navigations
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("jv_user_id") : null
-    if (saved) {
-      const user = USERS.find((u) => u.id === saved)
-      if (user) setCurrentUser(user)
+    const saved = typeof window !== "undefined" ? localStorage.getItem("jv_users") : null
+    if (!saved) return
+    try {
+      const parsed = JSON.parse(saved)
+      if (Array.isArray(parsed)) {
+        setUsers(parsed as User[])
+      }
+    } catch {
+      setUsers(INITIAL_USERS)
     }
   }, [])
 
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("jv_user_id") : null
+    if (saved) {
+      const user = users.find((u) => u.id === saved)
+      if (user) setCurrentUser(user)
+    }
+  }, [users])
+
+  useEffect(() => {
+    localStorage.setItem("jv_users", JSON.stringify(users))
+  }, [users])
+
+  useEffect(() => {
+    if (!currentUser) return
+    const updated = users.find((user) => user.id === currentUser.id)
+    if (!updated) {
+      setCurrentUser(null)
+      localStorage.removeItem("jv_user_id")
+      return
+    }
+    if (updated !== currentUser) {
+      setCurrentUser(updated)
+    }
+  }, [currentUser, users])
+
   const login = useCallback((userId: string) => {
-    const user = USERS.find((u) => u.id === userId)
+    const user = users.find((u) => u.id === userId)
     if (user) {
       setCurrentUser(user)
       localStorage.setItem("jv_user_id", userId)
     }
-  }, [])
+  }, [users])
 
   const logout = useCallback(() => {
     setCurrentUser(null)
     localStorage.removeItem("jv_user_id")
+  }, [])
+
+  const addUser = useCallback(
+    (user: Omit<User, "id" | "createdAt" | "onboardingStatus" | "trainingCompletedAt">): User => {
+      const newUser: User = {
+        ...user,
+        id: `${user.role}-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        onboardingStatus: "not_started",
+      }
+      setUsers((prev) => [newUser, ...prev])
+      return newUser
+    },
+    []
+  )
+
+  const updateUser = useCallback((userId: string, data: Partial<Pick<User, "name" | "email" | "role">>) => {
+    setUsers((prev) =>
+      prev.map((user) => (
+        user.id === userId
+          ? { ...user, ...data }
+          : user
+      ))
+    )
+  }, [])
+
+  const deleteUser = useCallback((userId: string) => {
+    setUsers((prev) => prev.filter((user) => user.id !== userId))
+  }, [])
+
+  const beginUserOnboarding = useCallback((userId: string) => {
+    setUsers((prev) =>
+      prev.map((user) => (
+        user.id === userId && user.onboardingStatus !== "complete"
+          ? { ...user, onboardingStatus: "in_progress" }
+          : user
+      ))
+    )
+  }, [])
+
+  const completeUserOnboarding = useCallback((userId: string) => {
+    const completedAt = new Date().toISOString()
+    setUsers((prev) =>
+      prev.map((user) => (
+        user.id === userId
+          ? {
+              ...user,
+              onboardingStatus: "complete",
+              trainingCompletedAt: completedAt,
+            }
+          : user
+      ))
+    )
   }, [])
 
   const addNotification = useCallback(
@@ -714,9 +832,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     <StoreContext.Provider
       value={{
         currentUser,
-        users: USERS,
+        users,
         login,
         logout,
+        addUser,
+        updateUser,
+        deleteUser,
+        beginUserOnboarding,
+        completeUserOnboarding,
         notifications,
         addNotification,
         markNotificationRead,

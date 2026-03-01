@@ -9,7 +9,6 @@ import {
   LogOut,
   PlaneTakeoff,
   Users,
-  HandCoins,
   Shield,
   UserCog,
   Menu,
@@ -22,7 +21,6 @@ export type PortalView =
   | "flight-requests"
   | "my-clients"
   | "clients"
-  | "finances"
   | "role-management"
   | "system-admin"
   | "requests-new"
@@ -47,7 +45,6 @@ const MANAGER_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboa
   { label: "Dashboard", view: "dashboard", icon: LayoutDashboard },
   { label: "Flight Requests", view: "flight-requests", icon: PlaneTakeoff },
   { label: "Clients", view: "clients", icon: Users },
-  { label: "Finances", view: "finances", icon: HandCoins },
   { label: "Role Management", view: "role-management", icon: UserCog },
   { label: "System Admin", view: "system-admin", icon: Shield },
   { label: "Send Notification", view: "send-notification", icon: Bell },

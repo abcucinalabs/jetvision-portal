@@ -9,13 +9,14 @@ interface Props {
   request: FlightRequest
   currentUser: UserType
   onUpdate: (data: Partial<FlightRequest>) => Promise<void>
+  canEdit?: boolean
 }
 
 function fmt(n: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(n)
 }
 
-export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
+export function Step5Proposal({ request, currentUser, onUpdate, canEdit = true }: Props) {
   const isIso = currentUser.role === "iso"
   const { addNotification } = useStore()
   const currency = request.avinodeBestQuoteCurrency ?? "USD"
@@ -69,14 +70,6 @@ export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
         jetvisionCost: cost || undefined,
         totalPrice: total,
         proposalNotes: proposalNotes || undefined,
-      })
-      addNotification({
-        title: "Proposal Ready for Review",
-        body: `A proposal of ${fmt(total, currency)} has been prepared for ${request.clientName} (${request.departure} → ${request.arrival}).`,
-        fromUserId: currentUser.id,
-        fromUserName: currentUser.name,
-        toRole: "iso",
-        toUserId: request.isoId,
       })
     } finally {
       setSavingProposal(false)
@@ -241,7 +234,7 @@ export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
             </button>
             <button
               onClick={() => void handleSendToIso()}
-              disabled={!base || total <= 0 || savingProposal}
+              disabled={!canEdit || !base || total <= 0 || savingProposal}
               className="flex items-center gap-2 rounded-full bg-gray-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {savingProposal && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -343,7 +336,7 @@ export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
         </button>
         <button
           onClick={() => void handleSendToClient()}
-          disabled={sending || !hasViewedProposal}
+          disabled={!canEdit || sending || !hasViewedProposal}
           className="flex items-center gap-2 rounded-full bg-gray-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
         >
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

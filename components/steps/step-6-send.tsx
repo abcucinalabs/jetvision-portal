@@ -1,15 +1,16 @@
 "use client"
 
-import { Clock, CheckCircle2 } from "lucide-react"
+import { Clock, CheckCircle2, ArrowRight } from "lucide-react"
 import type { FlightRequest, User as UserType } from "@/lib/store"
 import { format } from "date-fns"
 
 interface Props {
   request: FlightRequest
   currentUser: UserType
+  onNavigateToDecision?: () => void
 }
 
-export function Step6Send({ request, currentUser }: Props) {
+export function Step6Send({ request, currentUser, onNavigateToDecision }: Props) {
   const isIso = currentUser.role === "iso"
 
   const sentAt = request.proposalSentAt
@@ -47,6 +48,17 @@ export function Step6Send({ request, currentUser }: Props) {
           <p className="text-sm text-amber-800">
             Waiting for client response. Once the client responds, come back here to record their decision.
           </p>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onNavigateToDecision}
+            className="inline-flex items-center gap-2 rounded-full bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+          >
+            Record Client Decision
+            <ArrowRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
     )

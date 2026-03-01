@@ -14,7 +14,7 @@ import { SendNotificationView } from "@/components/views/send-notification-view"
 import { RequestsNewView } from "@/components/views/requests-new-view"
 import { MyClientsView } from "@/components/views/my-clients-view"
 import { ClientsView } from "@/components/views/clients-view"
-import { FinancesView } from "@/components/views/finances-view"
+import { OnboardingView } from "@/components/views/onboarding-view"
 import { RoleManagementView } from "@/components/views/role-management-view"
 import { SystemAdminView } from "@/components/views/system-admin-view"
 import { FloatingAiAssistant } from "@/components/floating-ai-assistant"
@@ -25,6 +25,12 @@ export function PortalShell() {
   const { currentUser } = useStore()
   const [activeView, setActiveView] = useState<PortalView>("dashboard")
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading")
+
+  useEffect(() => {
+    if (currentUser) {
+      setActiveView("dashboard")
+    }
+  }, [currentUser?.id])
 
   useEffect(() => {
     let active = true
@@ -68,6 +74,7 @@ export function PortalShell() {
   }
 
   if (!currentUser) return <LoginScreen />
+  if (currentUser.onboardingStatus !== "complete") return <OnboardingView />
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -81,7 +88,6 @@ export function PortalShell() {
           {activeView === "flight-requests" && <FlightRequestsView />}
           {activeView === "my-clients" && currentUser.role === "iso" && <MyClientsView />}
           {activeView === "clients" && currentUser.role === "manager" && <ClientsView />}
-          {activeView === "finances" && currentUser.role === "manager" && <FinancesView />}
           {activeView === "role-management" && currentUser.role === "manager" && <RoleManagementView />}
           {activeView === "system-admin" && currentUser.role === "manager" && <SystemAdminView />}
           {activeView === "notifications" && <NotificationsView />}

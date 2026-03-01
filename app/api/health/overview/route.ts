@@ -141,24 +141,30 @@ async function checkAvinodeConnectivity() {
 
   const { signal, clear } = timeoutSignal(8000)
   try {
-    // Use the same upstream endpoint as the active airport lookup workflow.
-    const res = await fetch(`${baseUrl}/airports/search?filter=KTEB`, {
+    // Probe the API base path instead of a Marketplace workflow endpoint so
+    // endpoint-specific permissions do not affect the overall connectivity badge.
+    const res = await fetch(baseUrl, {
       headers,
       signal,
       cache: "no-store",
     })
 
-    if (!res.ok) {
+    if (res.status >= 500) {
       const body = await res.text().catch(() => "")
-      const isAuthFailure = res.status === 401 || res.status === 403
-      const status: HealthStatus = res.status >= 500 ? "down" : "degraded"
       return {
-        status: isAuthFailure ? "degraded" : status,
-        detail: `Airport lookup workflow failed (${res.status})${body ? `: ${body.slice(0, 120)}` : ""}`,
+        status: "down" as const,
+        detail: `Avinode API unreachable (${res.status})${body ? `: ${body.slice(0, 120)}` : ""}`,
       }
     }
 
-    return { status: "healthy" as const, detail: "Airport lookup workflow succeeded" }
+    if (!res.ok) {
+      return {
+        status: "healthy" as const,
+        detail: `Avinode API reachable (${res.status})`,
+      }
+    }
+
+    return { status: "healthy" as const, detail: "Avinode API reachable" }
   } finally {
     clear()
   }

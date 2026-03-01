@@ -74,7 +74,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       </div>
 
       {/* Stats */}
-      <div className={`grid gap-4 ${isManager ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+      <div className="grid gap-6 sm:grid-cols-2">
         {stats.map((stat) => (
           <button
             key={stat.label}

@@ -8,6 +8,7 @@ import { StoreProvider, useStore, type FlightRequest } from "@/lib/store"
 import { SidebarNav } from "@/components/sidebar-nav"
 import { LoginScreen } from "@/components/login-screen"
 import { SupabaseSignInScreen } from "@/components/supabase-sign-in-screen"
+import { OnboardingView } from "@/components/views/onboarding-view"
 import { RequestStepper, getStepIndex } from "@/components/request-stepper"
 import { Step1Submitted } from "@/components/steps/step-1-submitted"
 import { Step2Review } from "@/components/steps/step-2-review"
@@ -66,6 +67,7 @@ function RequestDetailShell({ requestId }: { requestId: string }) {
   if (authStatus === "loading") return <div className="min-h-screen bg-slate-50" />
   if (authStatus === "signed_out") return <SupabaseSignInScreen />
   if (!currentUser) return <LoginScreen />
+  if (currentUser.onboardingStatus !== "complete") return <OnboardingView />
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -182,6 +184,11 @@ function RequestDetailContent({ requestId }: { requestId: string }) {
     stepIndex === activeStepIndex ||
     (canOpenDecisionStep && stepIndex === 5) ||
     (canBuildProposal && stepIndex === 3)
+  const contentInteractionClassName = canInteractWithViewedStep
+    ? ""
+    : stepIndex === 3
+    ? "opacity-75"
+    : "pointer-events-none opacity-75"
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 md:px-8 md:py-8 space-y-6">
@@ -219,7 +226,7 @@ function RequestDetailContent({ requestId }: { requestId: string }) {
             Viewing a completed step. Switch to the current step to make updates.
           </div>
         )}
-        <div className={canInteractWithViewedStep ? "" : "pointer-events-none opacity-75"}>
+        <div className={contentInteractionClassName}>
           {stepIndex === 0 && (
             <Step1Submitted request={request} currentUser={currentUser} onUpdate={handleUpdate} />
           )}
@@ -236,10 +243,19 @@ function RequestDetailContent({ requestId }: { requestId: string }) {
             />
           )}
           {stepIndex === 3 && (
-            <Step5Proposal request={request} currentUser={currentUser} onUpdate={handleUpdate} />
+            <Step5Proposal
+              request={request}
+              currentUser={currentUser}
+              onUpdate={handleUpdate}
+              canEdit={canInteractWithViewedStep}
+            />
           )}
           {stepIndex === 4 && (
-            <Step6Send request={request} currentUser={currentUser} />
+            <Step6Send
+              request={request}
+              currentUser={currentUser}
+              onNavigateToDecision={() => setSelectedStepIndex(5)}
+            />
           )}
           {stepIndex === 5 && (
             <Step7Decision request={request} currentUser={currentUser} onUpdate={handleUpdate} />
