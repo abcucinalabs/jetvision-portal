@@ -240,9 +240,11 @@ function formatPhoneNumber(value: string) {
 export function NewFlightRequestForm({
   onClose,
   onSubmit,
+  initialData,
 }: {
   onClose: () => void
   onSubmit: (data: FormData) => void
+  initialData?: Partial<FormData>
 }) {
   const { currentUser, customers, addCustomer, avinodeConnected } = useStore()
   const [customerMode, setCustomerMode] = useState<"select" | "new">("select")
@@ -276,6 +278,39 @@ export function NewFlightRequestForm({
     passengers: 1,
     specialRequests: "",
   })
+
+  useEffect(() => {
+    if (!initialData) return
+
+    setSelectedCustomer(null)
+    setCustomerSearch("")
+    setShowDropdown(false)
+    setDepartureOptions([])
+    setArrivalOptions([])
+    setSelectedDepartureIcao("")
+    setSelectedArrivalIcao("")
+    setShowDepartureDropdown(false)
+    setShowArrivalDropdown(false)
+    setCustomerMode(
+      initialData.clientName || initialData.clientEmail || initialData.clientPhone
+        ? "new"
+        : "select"
+    )
+    setTripType(initialData.returnDate || initialData.returnTime ? "round_trip" : "one_way")
+    setForm({
+      clientName: initialData.clientName || "",
+      clientEmail: initialData.clientEmail || "",
+      clientPhone: formatPhoneNumber(initialData.clientPhone || ""),
+      departure: initialData.departure || "",
+      arrival: initialData.arrival || "",
+      departureDate: initialData.departureDate || "",
+      departureTime: initialData.departureTime || "",
+      returnDate: initialData.returnDate || "",
+      returnTime: initialData.returnTime || "",
+      passengers: initialData.passengers || 1,
+      specialRequests: initialData.specialRequests || "",
+    })
+  }, [initialData])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

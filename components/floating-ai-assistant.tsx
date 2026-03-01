@@ -1,8 +1,10 @@
 "use client"
 
-import { FormEvent, useMemo, useRef, useState } from "react"
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { Bot, Loader2, Send, User, X } from "lucide-react"
 import { useStore } from "@/lib/store"
+import type { FormData } from "@/components/views/flight-requests-view"
+import type { PortalView } from "@/components/sidebar-nav"
 
 type ChatMessage = {
   id: string
@@ -10,28 +12,85 @@ type ChatMessage = {
   content: string
 }
 
-const SUGGESTED_PROMPTS = [
-  "Which clients have pending flight requests?",
-  "Show me flight requests for next week.",
-  "Which requests have more than 6 passengers?",
-]
+const SUGGESTED_PROMPTS = {
+  iso: [
+    "Start a new flight request",
+    "Add a new client",
+    "What are my top follow-ups today?",
+  ],
+  manager: [
+    "Which clients have pending flight requests?",
+    "Show me flight requests for next week.",
+    "Which requests have more than 6 passengers?",
+  ],
+} as const
 
-export function FloatingAiAssistant() {
+type ClientDraft = {
+  name?: string
+  email?: string
+  phone?: string
+}
+
+type AssistantAction =
+  | {
+    type: "draft_flight_request"
+    draft: Partial<FormData>
+    missingFields: string[]
+    ready: boolean
+  }
+  | {
+    type: "draft_client"
+    draft: ClientDraft
+    missingFields: string[]
+    ready: boolean
+  }
+
+export function FloatingAiAssistant({
+  onNavigate,
+  onDraftFlightRequest,
+  onDraftClient,
+}: {
+  onNavigate: (view: PortalView) => void
+  onDraftFlightRequest: (draft: Partial<FormData>) => void
+  onDraftClient: (draft: ClientDraft) => void
+}) {
   const { currentUser } = useStore()
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content: "Ask about flight requests or clients. I answer from portal data only.",
-    },
-  ])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [hasStartedConversation, setHasStartedConversation] = useState(false)
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading])
+  const suggestedPrompts = useMemo(
+    () => SUGGESTED_PROMPTS[currentUser?.role || "manager"],
+    [currentUser?.role]
+  )
+  const initialMessage = useMemo(() => (
+    currentUser?.role === "iso"
+      ? "Ask me to start a new flight request, add a new client, or help prioritize your follow-ups. I only use portal data."
+      : "Ask about requests, clients, follow-ups, or updates. I answer from portal data only."
+  ), [currentUser?.role])
+  const inputPlaceholder = currentUser?.role === "iso"
+    ? "Ask to start a request, add a client, or help with follow-ups..."
+    : "Ask anything about requests or clients..."
+  const showSuggestedPrompts = currentUser?.role === "manager" || !hasStartedConversation
+
+  useEffect(() => {
+    if (!currentUser) return
+    setMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        content: initialMessage,
+      },
+    ])
+    setHasStartedConversation(false)
+    setInput("")
+    setError(null)
+  }, [currentUser, initialMessage])
 
   if (!currentUser) return null
 
@@ -51,7 +110,11 @@ export function FloatingAiAssistant() {
       content: text,
     }
 
-    setMessages((prev) => [...prev, userMessage])
+    const nextMessages = [...messages, userMessage]
+    setMessages(nextMessages)
+    if (currentUser.role === "iso") {
+      setHasStartedConversation(true)
+    }
     setInput("")
     setLoading(true)
     setError(null)
@@ -67,6 +130,10 @@ export function FloatingAiAssistant() {
           message: text,
           userId: currentUser.id,
           userRole: currentUser.role,
+          history: nextMessages.map((item) => ({
+            role: item.role,
+            content: item.content,
+          })),
         }),
       })
 
@@ -76,6 +143,7 @@ export function FloatingAiAssistant() {
       }
 
       const answer = (json as { data?: { answer?: string } })?.data?.answer
+      const action = (json as { data?: { action?: AssistantAction } })?.data?.action
       if (!answer) {
         throw new Error("AI response is empty.")
       }
@@ -88,6 +156,17 @@ export function FloatingAiAssistant() {
           content: answer,
         },
       ])
+
+      if (action?.type === "draft_flight_request" && action.ready) {
+        onDraftFlightRequest(action.draft)
+        onNavigate("requests-new")
+      }
+
+      if (action?.type === "draft_client" && action.ready) {
+        onDraftClient(action.draft)
+        onNavigate("my-clients")
+      }
+
       window.setTimeout(scrollToBottom, 0)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message.")
@@ -152,25 +231,27 @@ export function FloatingAiAssistant() {
           </div>
 
           <div className="border-t border-border p-3">
-            <div className="mb-3 flex flex-wrap gap-2">
-              {SUGGESTED_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  onClick={() => void sendMessage(prompt)}
-                  disabled={loading}
-                  className="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
+            {showSuggestedPrompts && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {suggestedPrompts.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => void sendMessage(prompt)}
+                    disabled={loading}
+                    className="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <form onSubmit={onSubmit} className="flex items-center gap-2">
               <input
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Ask anything about requests or clients..."
+                placeholder={inputPlaceholder}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <button

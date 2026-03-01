@@ -1,22 +1,38 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { useStore, type FlightRequest } from "@/lib/store"
 import { ArrowLeft, Calendar, Plus, Users } from "lucide-react"
-import { NewFlightRequestForm } from "@/components/views/flight-requests-view"
+import { NewFlightRequestForm, type FormData } from "@/components/views/flight-requests-view"
 import { FlightRequestDataTable } from "@/components/flight-request-data-table"
 
-export function RequestsNewView() {
+export function RequestsNewView({
+  draftRequest,
+  onClearDraft,
+}: {
+  draftRequest?: Partial<FormData> | null
+  onClearDraft?: () => void
+}) {
   const { currentUser, flightRequests, addFlightRequest } = useStore()
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null)
   const [activeWizardStep, setActiveWizardStep] = useState<number>(1)
   const [showForm, setShowForm] = useState(false)
+  const isManager = currentUser?.role === "manager"
+  const requests = currentUser
+    ? isManager
+      ? flightRequests
+      : flightRequests.filter((fr) => fr.isoId === currentUser.id)
+    : []
+
+  useEffect(() => {
+    if (!draftRequest || isManager || !currentUser) return
+    setSelectedRequestId(null)
+    setActiveWizardStep(1)
+    setShowForm(true)
+  }, [draftRequest, isManager, currentUser])
 
   if (!currentUser) return null
-
-  const isManager = currentUser.role === "manager"
-  const requests = isManager ? flightRequests : flightRequests.filter((fr) => fr.isoId === currentUser.id)
 
   const selectedRequest = requests.find((fr) => fr.id === selectedRequestId) || null
 
@@ -62,7 +78,11 @@ export function RequestsNewView() {
 
       {showForm && (
         <NewFlightRequestForm
-          onClose={() => setShowForm(false)}
+          initialData={draftRequest || undefined}
+          onClose={() => {
+            setShowForm(false)
+            onClearDraft?.()
+          }}
           onSubmit={(data) => {
             addFlightRequest({
               ...data,
@@ -70,17 +90,20 @@ export function RequestsNewView() {
               isoName: currentUser.name,
             })
             setShowForm(false)
+            onClearDraft?.()
           }}
         />
       )}
 
-      <section className="rounded-xl border border-border bg-card p-4">
-        <FlightRequestDataTable
-          data={requests}
-          isManager={isManager}
-          onRowClick={openRequest}
-        />
-      </section>
+      {!showForm && (
+        <section className="rounded-xl border border-border bg-card p-4">
+          <FlightRequestDataTable
+            data={requests}
+            isManager={isManager}
+            onRowClick={openRequest}
+          />
+        </section>
+      )}
     </div>
   )
 }

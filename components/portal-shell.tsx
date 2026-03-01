@@ -18,6 +18,13 @@ import { OnboardingView } from "@/components/views/onboarding-view"
 import { RoleManagementView } from "@/components/views/role-management-view"
 import { SystemAdminView } from "@/components/views/system-admin-view"
 import { FloatingAiAssistant } from "@/components/floating-ai-assistant"
+import type { FormData } from "@/components/views/flight-requests-view"
+
+type ClientDraft = {
+  name?: string
+  email?: string
+  phone?: string
+}
 
 type AuthStatus = "loading" | "signed_out" | "signed_in"
 
@@ -25,10 +32,14 @@ export function PortalShell() {
   const { currentUser } = useStore()
   const [activeView, setActiveView] = useState<PortalView>("dashboard")
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading")
+  const [requestDraft, setRequestDraft] = useState<Partial<FormData> | null>(null)
+  const [clientDraft, setClientDraft] = useState<ClientDraft | null>(null)
 
   useEffect(() => {
     if (currentUser) {
       setActiveView("dashboard")
+      setRequestDraft(null)
+      setClientDraft(null)
     }
   }, [currentUser?.id])
 
@@ -84,9 +95,19 @@ export function PortalShell() {
           {activeView === "dashboard" && (
             <DashboardView onNavigate={setActiveView} />
           )}
-          {activeView === "requests-new" && <RequestsNewView />}
+          {activeView === "requests-new" && (
+            <RequestsNewView
+              draftRequest={requestDraft}
+              onClearDraft={() => setRequestDraft(null)}
+            />
+          )}
           {activeView === "flight-requests" && <FlightRequestsView />}
-          {activeView === "my-clients" && currentUser.role === "iso" && <MyClientsView />}
+          {activeView === "my-clients" && currentUser.role === "iso" && (
+            <MyClientsView
+              draftClient={clientDraft}
+              onClearDraft={() => setClientDraft(null)}
+            />
+          )}
           {activeView === "clients" && currentUser.role === "manager" && <ClientsView />}
           {activeView === "role-management" && currentUser.role === "manager" && <RoleManagementView />}
           {activeView === "system-admin" && currentUser.role === "manager" && <SystemAdminView />}
@@ -95,7 +116,11 @@ export function PortalShell() {
           {activeView === "send-notification" && <SendNotificationView />}
         </div>
       </main>
-      <FloatingAiAssistant />
+      <FloatingAiAssistant
+        onNavigate={setActiveView}
+        onDraftFlightRequest={(draft) => setRequestDraft(draft)}
+        onDraftClient={(draft) => setClientDraft(draft)}
+      />
     </div>
   )
 }

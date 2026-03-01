@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Check, MoreHorizontal, Pencil, Trash2, UserPlus, Users, X } from "lucide-react"
 import {
   DropdownMenu,
@@ -23,7 +23,13 @@ function formatPhoneNumber(value: string) {
   return `${prefix}(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6)}`
 }
 
-export function MyClientsView() {
+export function MyClientsView({
+  draftClient,
+  onClearDraft,
+}: {
+  draftClient?: { name?: string; email?: string; phone?: string } | null
+  onClearDraft?: () => void
+}) {
   const { currentUser, customers, addCustomer, updateCustomer, deleteCustomer } = useStore()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -33,12 +39,21 @@ export function MyClientsView() {
   const [editEmail, setEditEmail] = useState("")
   const [editPhone, setEditPhone] = useState("")
 
-  if (!currentUser || currentUser.role !== "iso") return null
-
   const myClients = useMemo(
-    () => customers.filter((c) => c.createdByUserId === currentUser.id),
-    [customers, currentUser.id]
+    () => currentUser?.role === "iso"
+      ? customers.filter((c) => c.createdByUserId === currentUser.id)
+      : [],
+    [customers, currentUser]
   )
+
+  useEffect(() => {
+    if (!draftClient) return
+    setName(draftClient.name || "")
+    setEmail(draftClient.email || "")
+    setPhone(formatPhoneNumber(draftClient.phone || ""))
+  }, [draftClient])
+
+  if (!currentUser || currentUser.role !== "iso") return null
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
@@ -54,6 +69,7 @@ export function MyClientsView() {
     setName("")
     setEmail("")
     setPhone("")
+    onClearDraft?.()
   }
 
   const startEditing = (clientId: string, currentName: string, currentEmail: string, currentPhone: string) => {
