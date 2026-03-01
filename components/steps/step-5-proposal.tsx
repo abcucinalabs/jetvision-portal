@@ -19,27 +19,44 @@ export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
   const isIso = currentUser.role === "iso"
   const { addNotification } = useStore()
   const currency = request.avinodeBestQuoteCurrency ?? "USD"
-
-  // Proposal builder state (manager builds proposal when status = quote_received)
-  const [proposalBase, setProposalBase] = useState<string>(
+  const initialBase =
     request.selectedQuoteAmount ? String(request.selectedQuoteAmount) :
     request.avinodeBestQuoteAmount ? String(request.avinodeBestQuoteAmount) : ""
+  const initialBaseAmount = parseFloat(initialBase) || 0
+
+  // Proposal builder state (manager builds proposal when status = quote_received)
+  const [proposalBase, setProposalBase] = useState<string>(initialBase)
+  const [isoCommissionPct, setIsoCommissionPct] = useState<number>(
+    request.isoCommission !== undefined && initialBaseAmount > 0
+      ? Math.min(20, Math.max(0, Math.round((request.isoCommission / initialBaseAmount) * 100)))
+      : 10
   )
-  const [isoCommission, setIsoCommission] = useState<string>(
-    request.isoCommission !== undefined ? String(request.isoCommission) : ""
-  )
-  const [jetvisionCost, setJetvisionCost] = useState<string>(
-    request.jetvisionCost !== undefined ? String(request.jetvisionCost) : ""
+  const [jetvisionCostPct, setJetvisionCostPct] = useState<number>(
+    request.jetvisionCost !== undefined && initialBaseAmount > 0
+      ? Math.min(20, Math.max(0, Math.round((request.jetvisionCost / initialBaseAmount) * 100)))
+      : 0
   )
   const [proposalNotes, setProposalNotes] = useState(request.proposalNotes ?? "")
+  const [hasViewedProposal, setHasViewedProposal] = useState(request.status === "proposal_sent")
   const [savingProposal, setSavingProposal] = useState(false)
-  const [pdfPreview, setPdfPreview] = useState(false)
   const [sending, setSending] = useState(false)
 
   const base = parseFloat(proposalBase) || 0
-  const commission = parseFloat(isoCommission) || 0
-  const cost = parseFloat(jetvisionCost) || 0
+  const commission = base > 0 ? (base * isoCommissionPct) / 100 : 0
+  const cost = base > 0 ? (base * jetvisionCostPct) / 100 : 0
   const total = base + commission + cost
+
+  const openProposalPreview = (previewTotal: number, previewNotes?: string) => {
+    if (isIso) setHasViewedProposal(true)
+    const params = new URLSearchParams()
+    if (previewTotal > 0) params.set("totalPrice", String(Math.round(previewTotal)))
+    if (currency) params.set("currency", currency)
+    if (previewNotes?.trim()) params.set("proposalNotes", previewNotes.trim())
+
+    const query = params.toString()
+    const url = `/api/proposals/${request.id}/preview${query ? `?${query}` : ""}`
+    window.open(url, "_blank", "noopener,noreferrer")
+  }
 
   const handleSendToIso = async () => {
     if (!base || total <= 0) return
@@ -105,11 +122,9 @@ export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
           </div>
 
           {/* Price fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {[
               { label: "Base Price (from quote)", value: proposalBase, setter: setProposalBase },
-              { label: "ISO Commission ($)", value: isoCommission, setter: setIsoCommission },
-              { label: "Jetvision Cost ($)", value: jetvisionCost, setter: setJetvisionCost },
             ].map(({ label, value, setter }) => (
               <div key={label}>
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">{label}</label>
@@ -128,6 +143,66 @@ export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
             ))}
           </div>
 
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500">ISO Commission</label>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">{isoCommissionPct}%</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-gray-400">Commission Amount</div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    {commission > 0 ? fmt(commission, currency) : "$0"}
+                  </div>
+                </div>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="20"
+                step="1"
+                value={isoCommissionPct}
+                onChange={(e) => setIsoCommissionPct(Number(e.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-200 accent-gray-900"
+              />
+              <div className="flex items-center justify-between text-[11px] font-medium text-gray-400">
+                <span>0%</span>
+                <span>10%</span>
+                <span>20%</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500">Jetvision Cost</label>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">{jetvisionCostPct}%</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-gray-400">Jetvision Amount</div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    {cost > 0 ? fmt(cost, currency) : "$0"}
+                  </div>
+                </div>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="20"
+                step="1"
+                value={jetvisionCostPct}
+                onChange={(e) => setJetvisionCostPct(Number(e.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-gray-200 accent-gray-900"
+              />
+              <div className="flex items-center justify-between text-[11px] font-medium text-gray-400">
+                <span>0%</span>
+                <span>10%</span>
+                <span>20%</span>
+              </div>
+            </div>
+          </div>
+
           {/* Total display */}
           <div className="rounded-2xl border border-gray-100 bg-white py-7 text-center shadow-sm">
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Total Price</div>
@@ -137,8 +212,8 @@ export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
             {total > 0 && (
               <div className="mt-2 flex items-center justify-center gap-4 text-xs text-gray-400 flex-wrap">
                 {base > 0 && <span>Base: {fmt(base, currency)}</span>}
-                {commission > 0 && <span>+ ISO: {fmt(commission, currency)}</span>}
-                {cost > 0 && <span>+ Jetvision: {fmt(cost, currency)}</span>}
+                {commission > 0 && <span>+ ISO ({isoCommissionPct}%): {fmt(commission, currency)}</span>}
+                {cost > 0 && <span>+ Jetvision ({jetvisionCostPct}%): {fmt(cost, currency)}</span>}
               </div>
             )}
           </div>
@@ -155,33 +230,10 @@ export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
             />
           </div>
 
-          {/* PDF Preview Modal */}
-          {pdfPreview && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-base font-semibold text-gray-900">Proposal Preview</h3>
-                  <button onClick={() => setPdfPreview(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-                </div>
-                <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center py-20 gap-3">
-                  <div className="text-5xl">📄</div>
-                  <p className="text-sm font-semibold text-gray-600">Proposal PDF Template</p>
-                  <p className="text-xs text-gray-400">Full branded template coming soon</p>
-                  {total > 0 && (
-                    <div className="mt-4 text-center space-y-1">
-                      <div className="text-xs text-gray-500">{request.clientName} · {request.departure} → {request.arrival}</div>
-                      <div className="text-3xl font-bold text-gray-900">{fmt(total, currency)}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Actions */}
           <div className="flex items-center justify-between pt-2">
             <button
-              onClick={() => setPdfPreview(true)}
+              onClick={() => openProposalPreview(total, proposalNotes)}
               disabled={total <= 0}
               className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
             >
@@ -216,6 +268,14 @@ export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
             <div className="text-2xl font-bold text-gray-900">{fmt(request.totalPrice, currency)}</div>
           </div>
         )}
+        <button
+          onClick={() => openProposalPreview(request.totalPrice || 0, request.proposalNotes)}
+          disabled={!request.totalPrice}
+          className="mt-4 flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+        >
+          <FileText className="h-4 w-4" />
+          View Sent Proposal
+        </button>
       </div>
     )
   }
@@ -266,44 +326,24 @@ export function Step5Proposal({ request, currentUser, onUpdate }: Props) {
         )}
       </div>
 
-      {/* PDF placeholder */}
-      <button
-        onClick={() => setPdfPreview(true)}
-        className="w-full rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center py-10 gap-2 hover:bg-gray-100 transition-colors group"
-      >
-        <FileText className="h-8 w-8 text-gray-300 group-hover:text-gray-400 transition-colors" />
-        <span className="text-sm font-medium text-gray-500">View Proposal PDF</span>
-        <span className="text-xs text-gray-400">PDF template coming soon — click to preview</span>
-      </button>
-
-      {/* PDF Preview Modal */}
-      {pdfPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-base font-semibold text-gray-900">Proposal Preview</h3>
-              <button onClick={() => setPdfPreview(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
-            </div>
-            <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col items-center justify-center py-20 gap-3">
-              <div className="text-5xl">📄</div>
-              <p className="text-sm font-semibold text-gray-600">Proposal PDF</p>
-              <p className="text-xs text-gray-400">Full branded template coming soon</p>
-              {total2 && (
-                <div className="mt-4 text-center">
-                  <div className="text-xs text-gray-500">{request.clientName}</div>
-                  <div className="text-3xl font-bold text-gray-900">{fmt(total2, currency)}</div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      {!hasViewedProposal && (
+        <p className="text-sm text-amber-700">
+          View the proposal PDF before sending it to the client.
+        </p>
       )}
 
-      {/* Send to Client */}
-      <div className="flex justify-end pt-2">
+      {/* Bottom actions */}
+      <div className="flex items-center justify-between gap-3 pt-2">
+        <button
+          onClick={() => openProposalPreview(total2 || 0, request.proposalNotes)}
+          className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <FileText className="h-4 w-4" />
+          View Proposal PDF
+        </button>
         <button
           onClick={() => void handleSendToClient()}
-          disabled={sending}
+          disabled={sending || !hasViewedProposal}
           className="flex items-center gap-2 rounded-full bg-gray-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
         >
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
