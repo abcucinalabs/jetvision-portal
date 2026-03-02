@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useStore } from "@/lib/store"
 import {
   PlaneTakeoff,
@@ -16,6 +17,7 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ onNavigate }: DashboardViewProps) {
+  const router = useRouter()
   const {
     currentUser,
     flightRequests,
@@ -117,7 +119,11 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
           ) : (
             <div className="divide-y divide-border">
               {recentRequests.map((fr) => (
-                <div key={fr.id} className="flex items-center gap-4 px-5 py-3.5">
+                <button
+                  key={fr.id}
+                  onClick={() => router.push(`/requests/${fr.id}`)}
+                  className="flex w-full items-center gap-4 px-5 py-3.5 text-left transition-colors hover:bg-muted/50"
+                >
                   <StatusIcon status={fr.status} />
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-sm font-medium text-card-foreground">
@@ -128,7 +134,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                     </div>
                   </div>
                   <StatusBadge status={fr.status} />
-                </div>
+                </button>
               ))}
             </div>
           )}

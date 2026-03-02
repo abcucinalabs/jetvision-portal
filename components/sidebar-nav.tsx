@@ -31,6 +31,7 @@ export type PortalView =
 interface SidebarNavProps {
   activeView: PortalView
   onNavigate: (view: PortalView) => void
+  onUnlockAiChat?: () => void
 }
 
 const ISO_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboard }[] = [
@@ -50,9 +51,18 @@ const MANAGER_NAV: { label: string; view: PortalView; icon: typeof LayoutDashboa
   { label: "Send Notification", view: "send-notification", icon: Bell },
 ]
 
-export function SidebarNav({ activeView, onNavigate }: SidebarNavProps) {
+export function SidebarNav({ activeView, onNavigate, onUnlockAiChat }: SidebarNavProps) {
   const { currentUser, logout, unreadCount } = useStore()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [userClickCount, setUserClickCount] = useState(0)
+
+  function handleUserClick() {
+    const next = userClickCount + 1
+    setUserClickCount(next)
+    if (next >= 3) {
+      onUnlockAiChat?.()
+    }
+  }
 
   if (!currentUser) return null
 
@@ -102,6 +112,11 @@ export function SidebarNav({ activeView, onNavigate }: SidebarNavProps) {
       {/* User section */}
       <div className="border-t border-gray-200 p-4">
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleUserClick}
+            className="flex items-center gap-3 flex-1 min-w-0 text-left"
+            aria-label="User info"
+          >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-black">
             {currentUser.name.split(" ").map((n) => n[0]).join("")}
           </div>
@@ -113,6 +128,7 @@ export function SidebarNav({ activeView, onNavigate }: SidebarNavProps) {
               {currentUser.role === "manager" ? "Manager" : "ISO"}
             </div>
           </div>
+          </button>
           <button
             onClick={logout}
             className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"

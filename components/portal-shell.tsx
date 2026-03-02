@@ -34,6 +34,7 @@ export function PortalShell() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading")
   const [requestDraft, setRequestDraft] = useState<Partial<FormData> | null>(null)
   const [clientDraft, setClientDraft] = useState<ClientDraft | null>(null)
+  const [aiChatUnlocked, setAiChatUnlocked] = useState(false)
 
   useEffect(() => {
     if (currentUser) {
@@ -89,7 +90,7 @@ export function PortalShell() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <SidebarNav activeView={activeView} onNavigate={setActiveView} />
+      <SidebarNav activeView={activeView} onNavigate={setActiveView} onUnlockAiChat={() => setAiChatUnlocked(true)} />
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
           {activeView === "dashboard" && (
@@ -116,11 +117,13 @@ export function PortalShell() {
           {activeView === "send-notification" && <SendNotificationView />}
         </div>
       </main>
-      <FloatingAiAssistant
-        onNavigate={setActiveView}
-        onDraftFlightRequest={(draft) => setRequestDraft(draft)}
-        onDraftClient={(draft) => setClientDraft(draft)}
-      />
+      {aiChatUnlocked && (
+        <FloatingAiAssistant
+          onNavigate={setActiveView}
+          onDraftFlightRequest={(draft) => setRequestDraft(draft)}
+          onDraftClient={(draft) => setClientDraft(draft)}
+        />
+      )}
     </div>
   )
 }
